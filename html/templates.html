@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Templates | SMS Portal</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <style>
+    body { background-color: #f8f9fa; }
+    .sidebar { height: 100vh; background-color: #1e3a8a; color: white; padding-top: 20px; }
+    .sidebar a { color: white; text-decoration: none; display:block; padding:10px 20px; border-radius:4px; margin-bottom:5px; }
+    .sidebar a:hover, .sidebar a.active { background-color: #3b82f6; }
+    .header { background-color: white; padding:15px 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .card { border: none; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .table th, .table td { vertical-align: middle; }
+    .badge { font-size: 0.8rem; }
+    .modal-body textarea { resize: none; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Sidebar -->
+      <div class="col-md-2 sidebar">
+        <h4 class="text-center mb-4">SMS Portal</h4>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="send_sms.html">Send SMS</a>
+        <a href="message_history.html">Message History</a>
+        <a href="#" class="active">Templates</a>
+        <a href="#">Sender IDs</a>
+        <a href="#">API Settings</a>
+        <a href="#">Logout</a>
+      </div>
+
+      <!-- Main content -->
+      <div class="col-md-10">
+        <div class="header d-flex justify-content-between align-items-center">
+          <h4>Manage Templates</h4>
+          <div><strong>User:</strong> admin1</div>
+        </div>
+
+        <div class="container mt-4">
+          <div class="card p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5>Template Library</h5>
+              <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#templateModal">+ Add New Template</button>
+            </div>
+
+            <!-- Search bar -->
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <input type="text" id="searchInput" class="form-control" placeholder="Search by name or category" oninput="filterTemplates()">
+              </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-responsive">
+              <table class="table table-striped align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Message</th>
+                    <th>Status</th>
+                    <th>Created By</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="templateTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Template Modal -->
+  <div class="modal fade" id="templateModal" tabindex="-1" aria-labelledby="templateModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <form id="templateForm" onsubmit="return handleTemplateSave(event)">
+          <div class="modal-header">
+            <h5 class="modal-title" id="templateModalLabel">Add New Template</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">Template Name</label>
+              <input type="text" id="templateName" class="form-control" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Category</label>
+              <select id="templateType" class="form-select" required>
+                <option value="">-- Select Category --</option>
+                <option value="student">Student</option>
+                <option value="teacher">Teacher</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Message Content</label>
+              <textarea id="templateContent" class="form-control" rows="4" placeholder="Use variables like {student_name}, {teacher_name}, {date}, {event}" required></textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Status</label>
+              <select id="templateStatus" class="form-select">
+                <option value="Approved">Approved</option>
+                <option value="Pending">Pending</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Template</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Dummy templates data
+    let templates = [
+      {
+        id: 1,
+        name: "Attendance Alert",
+        type: "student",
+        message: "Dear parent, your child {student_name} was absent on {date}.",
+        status: "Approved",
+        created_by: "Admin"
+      },
+      {
+        id: 2,
+        name: "Event Reminder",
+        type: "student",
+        message: "Dear {student_name}, you are invited to {event} on {date}.",
+        status: "Approved",
+        created_by: "Teacher"
+      },
+      {
+        id: 3,
+        name: "Teacher Meeting",
+        type: "teacher",
+        message: "Dear {teacher_name}, please attend the meeting on {date} regarding {event}.",
+        status: "Pending",
+        created_by: "Admin"
+      }
+    ];
+
+    let editingId = null;
+
+    // Render table
+    function renderTemplates(data = templates) {
+      const tbody = document.getElementById("templateTableBody");
+      tbody.innerHTML = "";
+      data.forEach(t => {
+        const statusClass = t.status === "Approved" ? "bg-success" : "bg-warning text-dark";
+        tbody.innerHTML += `
+          <tr>
+            <td>${t.name}</td>
+            <td><span class="badge bg-secondary">${t.type}</span></td>
+            <td><code>${t.message}</code></td>
+            <td><span class="badge ${statusClass}">${t.status}</span></td>
+            <td>${t.created_by}</td>
+            <td>
+              <button class="btn btn-sm btn-outline-primary me-1" onclick="editTemplate(${t.id})">Edit</button>
+              <button class="btn btn-sm btn-outline-danger" onclick="deleteTemplate(${t.id})">Delete</button>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    // Add/Edit handler
+    function handleTemplateSave(e) {
+      e.preventDefault();
+      const name = document.getElementById("templateName").value.trim();
+      const type = document.getElementById("templateType").value;
+      const message = document.getElementById("templateContent").value.trim();
+      const status = document.getElementById("templateStatus").value;
+
+      if (!name || !type || !message) {
+        alert("Please fill in all fields.");
+        return;
+      }
+
+      if (editingId) {
+        // Update existing
+        const index = templates.findIndex(t => t.id === editingId);
+        templates[index] = { id: editingId, name, type, message, status, created_by: "Admin" };
+        alert("Template updated successfully!");
+      } else {
+        // Add new
+        const newId = templates.length ? Math.max(...templates.map(t => t.id)) + 1 : 1;
+        templates.push({ id: newId, name, type, message, status, created_by: "Admin" });
+        alert("Template added successfully!");
+      }
+
+      editingId = null;
+      document.getElementById("templateForm").reset();
+      const modal = bootstrap.Modal.getInstance(document.getElementById("templateModal"));
+      modal.hide();
+      renderTemplates();
+    }
+
+    // Edit
+    function editTemplate(id) {
+      const t = templates.find(t => t.id === id);
+      if (!t) return;
+
+      editingId = id;
+      document.getElementById("templateModalLabel").textContent = "Edit Template";
+      document.getElementById("templateName").value = t.name;
+      document.getElementById("templateType").value = t.type;
+      document.getElementById("templateContent").value = t.message;
+      document.getElementById("templateStatus").value = t.status;
+
+      const modal = new bootstrap.Modal(document.getElementById("templateModal"));
+      modal.show();
+    }
+
+    // Delete
+    function deleteTemplate(id) {
+      if (!confirm("Are you sure you want to delete this template?")) return;
+      templates = templates.filter(t => t.id !== id);
+      renderTemplates();
+    }
+
+    // Filter
+    function filterTemplates() {
+      const query = document.getElementById("searchInput").value.toLowerCase();
+      const filtered = templates.filter(t =>
+        t.name.toLowerCase().includes(query) ||
+        t.type.toLowerCase().includes(query)
+      );
+      renderTemplates(filtered);
+    }
+
+    // Initial render
+    renderTemplates();
+  </script>
+</body>
+</html>

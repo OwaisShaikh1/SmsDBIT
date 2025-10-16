@@ -1,0 +1,123 @@
+### SMS Portal API Testing
+
+# Base URL
+@baseUrl = http://localhost:8000/api
+@accessToken = your-jwt-access-token-here
+
+### 1. User Registration
+POST {{baseUrl}}/auth/register/
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "username": "testuser",
+  "password": "testpassword123",
+  "password_confirm": "testpassword123",
+  "phone_number": "+1234567890",
+  "company": "Test Company"
+}
+
+### 2. User Login
+POST {{baseUrl}}/auth/login/
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "testpassword123"
+}
+
+### 3. Get User Profile
+GET {{baseUrl}}/auth/profile/
+Authorization: Bearer {{accessToken}}
+
+### 4. Send SMS
+POST {{baseUrl}}/send-sms/
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "message_text": "Hello! This is a test SMS from SMS Portal.",
+  "recipients": ["+1234567890", "+0987654321"],
+  "sender_id": null,
+  "template_id": null
+}
+
+### 5. Get SMS History
+GET {{baseUrl}}/history/
+Authorization: Bearer {{accessToken}}
+
+### 6. Get SMS History with Filters
+GET {{baseUrl}}/history/?status=sent&start_date=2024-01-01&end_date=2024-12-31
+Authorization: Bearer {{accessToken}}
+
+### 7. Get Dashboard Statistics
+GET {{baseUrl}}/dashboard/
+Authorization: Bearer {{accessToken}}
+
+### 8. Get Templates
+GET {{baseUrl}}/templates/
+Authorization: Bearer {{accessToken}}
+
+### 9. Create Template
+POST {{baseUrl}}/templates/
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "Welcome Message",
+  "content": "Welcome to our service! Your account has been successfully created.",
+  "is_active": true
+}
+
+### 10. Get Sender IDs
+GET {{baseUrl}}/senders/
+Authorization: Bearer {{accessToken}}
+
+### 11. Create Sender ID
+POST {{baseUrl}}/senders/
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "COMPANY",
+  "description": "Company branded sender ID",
+  "is_active": true
+}
+
+### 12. Get API Credentials
+GET {{baseUrl}}/credentials/
+Authorization: Bearer {{accessToken}}
+
+### 13. Update API Credentials
+PATCH {{baseUrl}}/credentials/
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "api_key": "your-mysmsmantra-api-key",
+  "client_id": "your-client-id",
+  "sender_id": "your-sender-id",
+  "is_active": true
+}
+
+### 14. Bulk SMS Send
+POST {{baseUrl}}/bulk-send/
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "message_text": "Bulk SMS test message",
+  "recipients": ["+1111111111", "+2222222222", "+3333333333"],
+  "sender_id": null
+}
+
+### 15. Token Refresh
+POST {{baseUrl}}/auth/token/refresh/
+Content-Type: application/json
+
+{
+  "refresh": "your-refresh-token-here"
+}
+
+### Test MySMSMantra API directly (for debugging)
+GET https://api.mylogin.co.in/api/v2/SendSMS?ApiKey=YOUR_API_KEY&ClientId=YOUR_CLIENT_ID&SenderId=YOUR_SENDER_ID&Message=Test%20message&MobileNumbers=1234567890&Is_Unicode=0&Is_Flash=0

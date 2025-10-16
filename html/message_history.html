@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Message History | SMS Portal</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <style>
+    body { background-color: #f8f9fa; }
+    .sidebar a.active { background-color: #3b82f6 !important; }
+    .header { background-color: white; padding:15px 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .card { border:none; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.05); }
+    .table th, .table td { vertical-align: middle; }
+    .status-badge { font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Sidebar dynamically loaded -->
+      <div class="col-md-2 p-0" id="sidebarContainer"></div>
+
+      <!-- Main content -->
+      <div class="col-md-10">
+        <div class="header d-flex justify-content-between align-items-center">
+          <h4>Message History</h4>
+          <div><strong>User:</strong> admin1</div>
+        </div>
+
+        <div class="container mt-4">
+          <div class="card p-4">
+            <h5 class="mb-3">Sent Messages</h5>
+
+            <!-- Filters -->
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <input type="text" id="searchInput" class="form-control" placeholder="Search by title, group, or sender" oninput="filterTable()">
+              </div>
+              <div class="col-md-4">
+                <input type="date" id="dateFilter" class="form-control" onchange="filterTable()">
+              </div>
+              <div class="col-md-4 text-end">
+                <button class="btn btn-sm btn-outline-secondary" onclick="resetFilters()">Reset Filters</button>
+              </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-responsive">
+              <table class="table table-striped align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th>Date & Time</th>
+                    <th>Title</th>
+                    <th>Sent By</th>
+                    <th>Groups</th>
+                    <th>Total Recipients</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="historyTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Message Preview Modal -->
+  <div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="previewModalLabel">Message Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="modalContent"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    // Dummy data for message history
+    const messageHistory = [
+      {
+        id: 1,
+        datetime: "2025-10-16 09:45 AM",
+        title: "Attendance Alert - Class 10A",
+        sent_by: "Teacher: Mr. Ali",
+        groups: ["Class 10A"],
+        recipients: 35,
+        type: "student",
+        status: "Delivered",
+        message: "Dear parent, your child {student_name} was absent on 15-10-2025.",
+        variables: { date: "15-10-2025" }
+      },
+      {
+        id: 2,
+        datetime: "2025-10-15 02:30 PM",
+        title: "Teacher Meeting Notice",
+        sent_by: "Admin: Principal",
+        groups: ["Teachers"],
+        recipients: 12,
+        type: "teacher",
+        status: "Delivered",
+        message: "Dear {teacher_name}, please attend the meeting on 18-10-2025 regarding Annual Event.",
+        variables: { date: "18-10-2025", event: "Annual Event" }
+      },
+      {
+        id: 3,
+        datetime: "2025-10-10 04:00 PM",
+        title: "Fee Reminder - Class 12",
+        sent_by: "Teacher: Ms. Khan",
+        groups: ["Class 12A", "Class 12B"],
+        recipients: 68,
+        type: "student",
+        status: "Delivered",
+        message: "Dear {student_name}, please pay your fees for October.",
+        variables: { month: "October" }
+      }
+    ];
+
+    function renderTable(data = messageHistory) {
+      const tbody = document.getElementById("historyTableBody");
+      tbody.innerHTML = "";
+      data.forEach(msg => {
+        tbody.innerHTML += `
+          <tr>
+            <td>${msg.datetime}</td>
+            <td>${msg.title}</td>
+            <td>${msg.sent_by}</td>
+            <td>${msg.groups.join(", ")}</td>
+            <td>${msg.recipients}</td>
+            <td><span class="badge bg-success status-badge">${msg.status}</span></td>
+            <td><button class="btn btn-sm btn-outline-primary" onclick="showPreview(${msg.id})">View</button></td>
+          </tr>
+        `;
+      });
+    }
+
+    function showPreview(id) {
+      const msg = messageHistory.find(m => m.id === id);
+      if (!msg) return;
+      const modalContent = `
+        <p><strong>Title:</strong> ${msg.title}</p>
+        <p><strong>Sent By:</strong> ${msg.sent_by}</p>
+        <p><strong>Groups:</strong> ${msg.groups.join(", ")}</p>
+        <p><strong>Date & Time:</strong> ${msg.datetime}</p>
+        <p><strong>Message Type:</strong> ${msg.type.toUpperCase()} Message</p>
+        <hr>
+        <p><strong>Message Template:</strong></p>
+        <pre class="bg-light p-3 rounded">${msg.message}</pre>
+        <hr>
+        <p><strong>Variables Used:</strong></p>
+        <ul>${Object.entries(msg.variables).map(([k,v]) => `<li><b>${k}</b>: ${v}</li>`).join("")}</ul>
+        <p><strong>Total Recipients:</strong> ${msg.recipients}</p>
+      `;
+      document.getElementById("modalContent").innerHTML = modalContent;
+      new bootstrap.Modal(document.getElementById("previewModal")).show();
+    }
+
+    function filterTable() {
+      const search = document.getElementById("searchInput").value.toLowerCase();
+      const date = document.getElementById("dateFilter").value;
+      const filtered = messageHistory.filter(msg => {
+        const matchesSearch =
+          msg.title.toLowerCase().includes(search) ||
+          msg.sent_by.toLowerCase().includes(search) ||
+          msg.groups.join(", ").toLowerCase().includes(search);
+        const matchesDate = !date || msg.datetime.startsWith(date);
+        return matchesSearch && matchesDate;
+      });
+      renderTable(filtered);
+    }
+
+    function resetFilters() {
+      document.getElementById("searchInput").value = "";
+      document.getElementById("dateFilter").value = "";
+      renderTable();
+    }
+
+    renderTable();
+  </script>
+
+  <!-- Global Sidebar Loader -->
+  <script src="./js/common.js"></script>
+</body>
+</html>
