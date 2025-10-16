@@ -213,24 +213,43 @@
       }
     }
 
-    // Dummy logic for demonstration
+    // ✅ LOGIN HANDLER
     function handleLogin(e) {
       e.preventDefault();
+
+      const username = document.getElementById("loginUsername").value.trim();
+      const password = document.getElementById("loginPassword").value.trim();
       const role = document.getElementById("loginRole").value;
-      if (role === "admin") {
-        alert("✅ Admin logged in successfully!");
-        window.location.href = "/dashboard.html";
-      } else if (role === "teacher") {
-        alert("✅ Teacher logged in successfully!");
-        window.location.href = "send_sms.html";
-      } else {
-        alert("❌ Invalid credentials.");
+
+      if (!username || !password || !role) {
+        alert("Please fill in all fields.");
+        return;
       }
+
+      // Simulate authentication (replace with API call later)
+      localStorage.setItem("isLoggedIn", "true");
+      localStorage.setItem("username", username);
+      localStorage.setItem("role", role);
+
+      alert(`✅ ${role.charAt(0).toUpperCase() + role.slice(1)} logged in successfully!`);
+      window.location.href = "/frontend/templates/index.html";
     }
 
+    // ✅ SIGNUP HANDLER
     function handleSignup(e) {
       e.preventDefault();
+
+      const name = document.getElementById("signupName").value.trim();
+      const email = document.getElementById("signupEmail").value.trim();
+      const password = document.getElementById("signupPassword").value.trim();
       const role = document.getElementById("signupRole").value;
+
+      if (!name || !email || !password || !role) {
+        alert("Please fill in all fields.");
+        return;
+      }
+
+      // Simulated signup
       alert(`✅ ${role.charAt(0).toUpperCase() + role.slice(1)} account created successfully!`);
       toggleForm();
     }

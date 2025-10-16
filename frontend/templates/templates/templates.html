@@ -23,17 +23,8 @@
 <body>
   <div class="container-fluid">
     <div class="row">
-      <!-- Sidebar -->
-      <div class="col-md-2 sidebar">
-        <h4 class="text-center mb-4">SMS Portal</h4>
-        <a href="dashboard.html">Dashboard</a>
-        <a href="send_sms.html">Send SMS</a>
-        <a href="message_history.html">Message History</a>
-        <a href="#" class="active">Templates</a>
-        <a href="#">Sender IDs</a>
-        <a href="#">API Settings</a>
-        <a href="#">Logout</a>
-      </div>
+      <!-- Sidebar dynamically loaded -->
+      <div class="col-md-2 p-0" id="sidebarContainer"></div>
 
       <!-- Main content -->
       <div class="col-md-10">
@@ -244,5 +235,9 @@
     // Initial render
     renderTemplates();
   </script>
+  
+  <!-- Global Sidebar Loader -->
+  <script src="../../static/js/components/sidebar.js"></script>
+  <script src="../../static/js/common/common.js"></script>
 </body>
 </html>
