@@ -47,16 +47,16 @@
       if (isAuthenticated && role) {
         // Redirect based on role
         if (role === "admin") {
-          window.location.href = "/frontend/templates/dashboard/dashboard.html";
+          window.location.href = "/dashboard/";
         } else if (role === "teacher") {
-          window.location.href = "/frontend/templates/sms/send.html";
+          window.location.href = "/send/";
         } else {
           // Unknown role - fallback to login
-          window.location.href = "/frontend/templates/auth/login.html";
+          window.location.href = "/login/";
         }
       } else {
         // Not logged in - go to login/signup
-        window.location.href = "/frontend/templates/auth/login.html";
+        window.location.href = "/login/";
       }
     });
   </script>
