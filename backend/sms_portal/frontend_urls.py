@@ -30,10 +30,10 @@ urlpatterns = [
     
     # Reports
     path('reports/', frontend_views.ReportsView.as_view(), name='reports'),
-    
-    # Contacts
-    path('contacts/', frontend_views.ContactsView.as_view(), name='contacts'),
-    
+
+    # Groups
+    path('groups/', frontend_views.GroupView.as_view(), name='groups'),
+
     # Dynamic components
     path('sidebar/', frontend_views.sidebar_view, name='sidebar'),
     

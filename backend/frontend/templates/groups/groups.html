@@ -1,0 +1,344 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Groups | SMS Portal</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- SheetJS for Excel import -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    body { background-color: #f8f9fa; }
+    .sidebar a.active { background-color: #3b82f6 !important; }
+    .header {
+      background-color: white;
+      padding: 15px 25px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .card {
+      border: none;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .btn-primary { background-color: #1e3a8a; border: none; }
+    .btn-primary:hover { background-color: #3b82f6; }
+  </style>
+</head>
+
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Sidebar -->
+      <div class="col-md-2 p-0" id="sidebarContainer"></div>
+
+      <!-- Main Content -->
+      <div class="col-md-10">
+        <div class="header d-flex justify-content-between align-items-center">
+          <h4>Groups Management</h4>
+          <div><strong>Admin:</strong> {{ request.user.username|default:"admin" }}</div>
+        </div>
+
+        <div class="container mt-4">
+          <!-- Groups Table -->
+          <div class="card mb-4">
+            <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+              <span>All Groups</span>
+              <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addGroupModal">+ Add Group</button>
+            </div>
+            <div class="card-body">
+              <div class="row mb-3">
+                <div class="col-md-4">
+                  <input type="text" id="searchInput" class="form-control" placeholder="Search group by name...">
+                </div>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-striped align-middle">
+                  <thead>
+                    <tr>
+                      <th>Group Name</th>
+                      <th>Type</th>
+                      <th>Total Members</th>
+                      <th>Created By</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="groupsTableBody">
+                    <tr><td colspan="5" class="text-center text-muted">Loading groups...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chart Section -->
+          <div class="card mb-5">
+            <div class="card-header bg-white fw-bold">Group Distribution by Type</div>
+            <div class="card-body">
+              <canvas id="groupsChart" height="100"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Group Modal -->
+  <div class="modal fade" id="addGroupModal" tabindex="-1" aria-labelledby="addGroupModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <form id="groupForm">
+          <div class="modal-header">
+            <h5 class="modal-title" id="addGroupModalLabel">Add New Group</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">Group Name</label>
+              <input type="text" id="groupName" class="form-control" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Group Type</label>
+              <select id="groupType" class="form-select" required>
+                <option value="">-- Select Type --</option>
+                <option value="student">Student</option>
+                <option value="teacher">Teacher</option>
+              </select>
+            </div>
+
+            <hr>
+            <h6>Add Members</h6>
+            <div class="d-flex gap-2 mb-3">
+              <input type="text" id="memberName" class="form-control" placeholder="Name">
+              <input type="text" id="memberNumber" class="form-control" placeholder="Mobile Number">
+              <button type="button" class="btn btn-outline-primary" id="addMemberBtn">Add</button>
+            </div>
+
+            <!-- Excel Import -->
+            <div class="mb-3">
+              <label class="form-label fw-bold">Upload Excel or CSV</label>
+              <input type="file" id="excelFileInput" accept=".xlsx,.xls,.csv" class="form-control">
+              <div class="form-text">Expected columns: <b>Name</b> and <b>Number</b></div>
+            </div>
+
+            <div id="membersList" class="mt-3"></div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Group</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="{% static 'js/components/sidebar.js' %}"></script>
+  <script src="{% static 'js/common/common.js' %}"></script>
+
+  <script>
+    // --- Dummy Group Data ---
+    let groups = [
+      {
+        name: "Class 10A",
+        type: "student",
+        members: [
+          { name: "Ayesha Khan", number: "9876543210" },
+          { name: "Rohan Patel", number: "9123456789" },
+          { name: "Sara Ahmed", number: "9988776655" }
+        ],
+        created_by: "Mr. Ali"
+      },
+      {
+        name: "Class 12 Science",
+        type: "student",
+        members: [
+          { name: "Farhan Shaikh", number: "9845671230" },
+          { name: "Ritika Mehta", number: "9990011223" }
+        ],
+        created_by: "Ms. Khan"
+      },
+      {
+        name: "Science Faculty",
+        type: "teacher",
+        members: [
+          { name: "Dr. Sharma", number: "9812312123" },
+          { name: "Prof. Iqbal", number: "9876541111" }
+        ],
+        created_by: "Principal"
+      },
+      {
+        name: "Sports Department",
+        type: "teacher",
+        members: [
+          { name: "Coach Ajay", number: "9877654321" },
+          { name: "Ms. Fernandes", number: "9912345678" }
+        ],
+        created_by: "Admin"
+      }
+    ];
+
+    let members = [];
+
+    const tableBody = document.getElementById("groupsTableBody");
+    const excelInput = document.getElementById("excelFileInput");
+
+    // --- Event Bindings ---
+    document.getElementById("addMemberBtn").addEventListener("click", addMember);
+    document.getElementById("groupForm").addEventListener("submit", saveGroup);
+    excelInput.addEventListener("change", handleExcelUpload);
+    document.getElementById("searchInput").addEventListener("input", filterGroups);
+
+    // --- Functions ---
+    function addMember() {
+      const name = document.getElementById("memberName").value.trim();
+      const number = document.getElementById("memberNumber").value.trim();
+      if (!name || !number) return alert("Please enter both name and number.");
+      members.push({ name, number });
+      document.getElementById("memberName").value = "";
+      document.getElementById("memberNumber").value = "";
+      renderMembers();
+    }
+
+    function renderMembers() {
+      const list = document.getElementById("membersList");
+      list.innerHTML = members.map((m, i) => `
+        <div class="d-flex justify-content-between align-items-center border p-2 rounded mb-1">
+          <span>${m.name} - <small class="text-muted">${m.number}</small></span>
+          <button class="btn btn-sm btn-outline-danger" onclick="removeMember(${i})">Remove</button>
+        </div>
+      `).join("");
+    }
+
+    function removeMember(i) {
+      members.splice(i, 1);
+      renderMembers();
+    }
+
+    function saveGroup(e) {
+      e.preventDefault();
+      const name = document.getElementById("groupName").value.trim();
+      const type = document.getElementById("groupType").value;
+      if (!name || !type || members.length === 0) return alert("Fill all fields and add members.");
+
+      groups.push({ name, type, members, created_by: "Admin" });
+      renderGroups(groups);
+      members = [];
+      renderMembers();
+      document.getElementById("groupForm").reset();
+      bootstrap.Modal.getInstance(document.getElementById("addGroupModal")).hide();
+      updateChart();
+    }
+
+    function renderGroups(data = groups) {
+      tableBody.innerHTML = "";
+      if (data.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">No groups found.</td></tr>`;
+        return;
+      }
+
+      data.forEach((g, i) => {
+        tableBody.innerHTML += `
+          <tr>
+            <td>${g.name}</td>
+            <td><span class="badge ${g.type === "teacher" ? "bg-info" : "bg-success"}">${g.type}</span></td>
+            <td>${g.members.length}</td>
+            <td>${g.created_by}</td>
+            <td>
+              <button class="btn btn-sm btn-outline-primary me-1" onclick="goToGroupDetails(${i})">View Details</button>
+              <button class="btn btn-sm btn-outline-danger" onclick="deleteGroup(${i})">Delete</button>
+            </td>
+
+          </tr>
+        `;
+      });
+    }
+
+    function deleteGroup(i) {
+      if (confirm("Delete this group?")) {
+        groups.splice(i, 1);
+        renderGroups();
+        updateChart();
+      }
+    }
+
+    function viewGroup(i) {
+      const g = groups[i];
+      alert(`👥 ${g.name} (${g.type})\n\n${g.members.map(m => m.name + " - " + m.number).join("\n")}`);
+    }
+
+    // --- Search ---
+    function filterGroups() {
+      const query = document.getElementById("searchInput").value.toLowerCase();
+      const filtered = groups.filter(g => g.name.toLowerCase().includes(query));
+      renderGroups(filtered);
+    }
+
+    // --- Excel Upload ---
+    function handleExcelUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+        let added = 0;
+        rows.forEach(row => {
+          const name = row["Name"] || row["name"];
+          const number = row["Number"] || row["Mobile"] || row["Phone"];
+          if (name && number) {
+            members.push({ name, number });
+            added++;
+          }
+        });
+        if (added > 0) {
+          alert(`✅ Imported ${added} members.`);
+          renderMembers();
+        } else {
+          alert("No valid records found.");
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // --- Chart ---
+    const ctx = document.getElementById("groupsChart").getContext("2d");
+    const groupsChart = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: ["Student Groups", "Teacher Groups"],
+        datasets: [{ data: [0, 0], backgroundColor: ["#3b82f6", "#22c55e"] }]
+      },
+      options: { plugins: { legend: { position: "bottom" } } }
+    });
+
+    function updateChart() {
+      const students = groups.filter(g => g.type === "student").length;
+      const teachers = groups.filter(g => g.type === "teacher").length;
+      groupsChart.data.datasets[0].data = [students, teachers];
+      groupsChart.update();
+    }
+
+    function goToGroupDetails(i) {
+      // Save selected group in localStorage so group_details.html can access it
+      localStorage.setItem("selectedGroup", JSON.stringify(groups[i]));
+      window.location.href = "/groups/group_details.html";
+    }
+
+
+    // --- Initialize ---
+    document.addEventListener("DOMContentLoaded", () => {
+      renderGroups(groups);
+      updateChart();
+    });
+  </script>
+</body>
+</html>

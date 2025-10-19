@@ -81,9 +81,9 @@ class ReportsView(FrontendTemplateView):
     template_name = 'reports/reports.html'  # This doesn't exist, will trigger 404
 
 
-# Contacts Views
-class ContactsView(FrontendTemplateView):
-    template_name = 'contacts/contacts.html'  # This doesn't exist, will trigger 404
+# Group Views
+class GroupView(FrontendTemplateView):
+    template_name = 'groups/groups.html'  # This doesn't exist, will trigger 404
 
 
 # Home/Index View
