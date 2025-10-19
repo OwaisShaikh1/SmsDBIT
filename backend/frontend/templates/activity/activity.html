@@ -1,0 +1,512 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SMS Portal — Activity Log</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #f8f9fa; min-height: 100vh; }
+    .sidebar a.active { background-color: #3b82f6 !important; }
+    .header { background-color: white; padding: 15px 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .card { border: none; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .activity-item { border-left: 3px solid #e5e7eb; padding-left: 1rem; margin-bottom: 1rem; }
+    .activity-item.success { border-left-color: #10b981; }
+    .activity-item.warning { border-left-color: #f59e0b; }
+    .activity-item.error { border-left-color: #ef4444; }
+    .activity-item.info { border-left-color: #3b82f6; }
+    .activity-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .activity-details { font-size: 0.875rem; color: #6b7280; }
+    .timeline { position: relative; }
+    .timeline::before { content: ''; position: absolute; left: 20px; top: 0; height: 100%; width: 2px; background: #e5e7eb; }
+  </style>
+</head>
+<body>
+  <script>window.API_BASE = '{{ API_BASE }}';</script>
+
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-2 p-0" id="sidebarContainer">
+        <noscript>{% include 'includes/sidebar.html' with role=user_role %}</noscript>
+        <div id="sidebarLoader" style="height:100vh;background:#1e3a8a;color:white;display:flex;align-items:center;justify-content:center;">
+          <div>Loading navigation...</div>
+        </div>
+      </div>
+
+      <div class="col-md-10">
+        <div class="header d-flex justify-content-between align-items-center">
+          <div>
+            <h4 class="mb-0">Activity Log</h4>
+            <div style="font-size: .85rem; color: #6b7280;">System activity and audit trail</div>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" onclick="exportLogs()">
+              <i class="fas fa-download"></i> Export
+            </button>
+            <button class="btn btn-primary" onclick="refreshLogs()">
+              <i class="fas fa-refresh"></i> Refresh
+            </button>
+          </div>
+        </div>
+
+        <div class="container mt-4">
+          <!-- Stats Cards -->
+          <div class="row g-3 mb-4">
+            <div class="col-md-3">
+              <div class="card text-center p-3">
+                <h6>Today's Activities</h6>
+                <h3 class="text-primary" id="todayCount">0</h3>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center p-3">
+                <h6>SMS Sent</h6>
+                <h3 class="text-success" id="smsCount">0</h3>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center p-3">
+                <h6>Login Events</h6>
+                <h3 class="text-info" id="loginCount">0</h3>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center p-3">
+                <h6>Errors</h6>
+                <h3 class="text-danger" id="errorCount">0</h3>
+              </div>
+            </div>
+          </div>
+
+          <!-- Filters -->
+          <div class="card mb-4">
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-md-2">
+                  <select class="form-select" id="levelFilter">
+                    <option value="">All Levels</option>
+                    <option value="info">Info</option>
+                    <option value="success">Success</option>
+                    <option value="warning">Warning</option>
+                    <option value="error">Error</option>
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <select class="form-select" id="categoryFilter">
+                    <option value="">All Categories</option>
+                    <option value="authentication">Authentication</option>
+                    <option value="sms">SMS</option>
+                    <option value="user_management">User Management</option>
+                    <option value="system">System</option>
+                    <option value="api">API</option>
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <select class="form-select" id="userFilter">
+                    <option value="">All Users</option>
+                    <option value="admin">Admin</option>
+                    <option value="teacher">Teachers</option>
+                    <option value="student">Students</option>
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <input type="date" class="form-control" id="dateFilter" value="${new Date().toISOString().split('T')[0]}">
+                </div>
+                <div class="col-md-2">
+                  <select class="form-select" id="timeRange">
+                    <option value="today">Today</option>
+                    <option value="week">Last 7 Days</option>
+                    <option value="month">Last 30 Days</option>
+                    <option value="all">All Time</option>
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <input type="text" class="form-control" placeholder="Search..." id="searchLogs">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Activity Timeline -->
+          <div class="card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+              <h5 class="mb-0">Activity Timeline</h5>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()">
+                <label class="form-check-label" for="autoRefresh">Auto Refresh</label>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="timeline" id="activityTimeline">
+                <!-- Activities will be loaded here -->
+              </div>
+              <div class="text-center mt-4">
+                <button class="btn btn-outline-primary" id="loadMoreBtn" onclick="loadMoreActivities()">Load More</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Activity Details Modal -->
+  <div class="modal fade" id="activityModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="activityModalTitle">Activity Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="activityModalBody">
+          <!-- Activity details will be loaded here -->
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="{% static 'js/common/common.js' %}"></script>
+  
+  <script>
+    let activities = [];
+    let filteredActivities = [];
+    let currentPage = 1;
+    let pageSize = 50;
+    let autoRefreshInterval = null;
+
+    // Load activities from API
+    async function loadActivities() {
+      try {
+        const response = await window.AppAuth.authFetch(`${window.AppAuth.API_BASE}/activity-logs/`);
+        if (response.ok) {
+          activities = await response.json();
+        }
+      } catch (error) {
+        console.error('Error loading activities:', error);
+        // Mock data for demo
+        activities = generateMockActivities();
+      }
+      filteredActivities = [...activities];
+      renderActivities();
+      updateStats();
+    }
+
+    function generateMockActivities() {
+      const mockActivities = [];
+      const categories = ['authentication', 'sms', 'user_management', 'system', 'api'];
+      const levels = ['info', 'success', 'warning', 'error'];
+      const users = ['admin@test.com', 'teacher1@school.com', 'student1@school.com', 'system'];
+      
+      const actions = {
+        authentication: ['User logged in', 'User logged out', 'Failed login attempt', 'Password changed', 'Account locked'],
+        sms: ['SMS sent successfully', 'SMS delivery failed', 'Bulk SMS initiated', 'SMS template approved', 'SMS quota exceeded'],
+        user_management: ['User created', 'User updated', 'User deleted', 'Role assigned', 'Permission granted'],
+        system: ['System startup', 'Database backup', 'System maintenance', 'Configuration updated', 'Cache cleared'],
+        api: ['API request processed', 'API rate limit exceeded', 'Invalid API request', 'API key generated', 'API endpoint accessed']
+      };
+
+      for (let i = 0; i < 100; i++) {
+        const category = categories[Math.floor(Math.random() * categories.length)];
+        const level = levels[Math.floor(Math.random() * levels.length)];
+        const user = users[Math.floor(Math.random() * users.length)];
+        const action = actions[category][Math.floor(Math.random() * actions[category].length)];
+        
+        const date = new Date();
+        date.setMinutes(date.getMinutes() - i * 5); // 5 minutes apart
+        
+        mockActivities.push({
+          id: i + 1,
+          timestamp: date.toISOString(),
+          level: level,
+          category: category,
+          action: action,
+          user: user,
+          ip_address: `192.168.1.${Math.floor(Math.random() * 255)}`,
+          user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          details: {
+            endpoint: category === 'api' ? `/api/v1/${category}/` : null,
+            status_code: Math.random() > 0.8 ? 400 : 200,
+            duration: Math.floor(Math.random() * 1000) + 'ms',
+            additional_info: `Additional context for ${action.toLowerCase()}`
+          },
+          message: `${action} by ${user}${level === 'error' ? ' - Error occurred' : ''}`,
+          session_id: `sess_${Math.random().toString(36).substr(2, 9)}`
+        });
+      }
+      
+      return mockActivities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    }
+
+    function renderActivities(page = 1) {
+      const container = document.getElementById('activityTimeline');
+      
+      if (page === 1) {
+        container.innerHTML = '';
+      }
+      
+      const startIndex = (page - 1) * pageSize;
+      const endIndex = startIndex + pageSize;
+      const pageActivities = filteredActivities.slice(startIndex, endIndex);
+      
+      pageActivities.forEach(activity => {
+        const activityElement = createActivityElement(activity);
+        container.appendChild(activityElement);
+      });
+      
+      // Show/hide load more button
+      const loadMoreBtn = document.getElementById('loadMoreBtn');
+      loadMoreBtn.style.display = endIndex >= filteredActivities.length ? 'none' : 'inline-block';
+    }
+
+    function createActivityElement(activity) {
+      const element = document.createElement('div');
+      element.className = `activity-item ${activity.level}`;
+      
+      const icon = getActivityIcon(activity.level);
+      const timeAgo = getTimeAgo(activity.timestamp);
+      
+      element.innerHTML = `
+        <div class="d-flex">
+          <div class="activity-icon bg-${getLevelColor(activity.level)} text-white me-3">
+            ${icon}
+          </div>
+          <div class="flex-grow-1">
+            <div class="d-flex justify-content-between align-items-start mb-1">
+              <h6 class="mb-0">${activity.message}</h6>
+              <small class="text-muted">${timeAgo}</small>
+            </div>
+            <div class="activity-details">
+              <span class="badge bg-light text-dark me-2">${activity.category}</span>
+              <span class="me-3">User: ${activity.user}</span>
+              <span class="me-3">IP: ${activity.ip_address}</span>
+              ${activity.details.status_code ? `<span class="me-3">Status: ${activity.details.status_code}</span>` : ''}
+              ${activity.details.duration ? `<span class="me-3">Duration: ${activity.details.duration}</span>` : ''}
+            </div>
+            <div class="mt-2">
+              <button class="btn btn-sm btn-outline-secondary" onclick="viewActivityDetails(${activity.id})">
+                View Details
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      return element;
+    }
+
+    function getActivityIcon(level) {
+      const icons = {
+        info: '<i class="fas fa-info"></i>',
+        success: '<i class="fas fa-check"></i>',
+        warning: '<i class="fas fa-exclamation-triangle"></i>',
+        error: '<i class="fas fa-times"></i>'
+      };
+      return icons[level] || '<i class="fas fa-circle"></i>';
+    }
+
+    function getLevelColor(level) {
+      const colors = {
+        info: 'primary',
+        success: 'success',
+        warning: 'warning',
+        error: 'danger'
+      };
+      return colors[level] || 'secondary';
+    }
+
+    function getTimeAgo(timestamp) {
+      const now = new Date();
+      const time = new Date(timestamp);
+      const diffMs = now - time;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+      
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      return `${diffDays}d ago`;
+    }
+
+    function updateStats() {
+      const today = new Date().toDateString();
+      const todayActivities = activities.filter(a => new Date(a.timestamp).toDateString() === today);
+      const smsActivities = activities.filter(a => a.category === 'sms');
+      const loginActivities = activities.filter(a => a.category === 'authentication');
+      const errorActivities = activities.filter(a => a.level === 'error');
+      
+      document.getElementById('todayCount').textContent = todayActivities.length;
+      document.getElementById('smsCount').textContent = smsActivities.length;
+      document.getElementById('loginCount').textContent = loginActivities.length;
+      document.getElementById('errorCount').textContent = errorActivities.length;
+    }
+
+    function viewActivityDetails(id) {
+      const activity = activities.find(a => a.id === id);
+      document.getElementById('activityModalTitle').textContent = `Activity #${activity.id}`;
+      
+      const body = document.getElementById('activityModalBody');
+      body.innerHTML = `
+        <div class="row">
+          <div class="col-md-6">
+            <h6>Basic Information</h6>
+            <table class="table table-sm">
+              <tr><td><strong>Timestamp:</strong></td><td>${new Date(activity.timestamp).toLocaleString()}</td></tr>
+              <tr><td><strong>Level:</strong></td><td><span class="badge bg-${getLevelColor(activity.level)}">${activity.level}</span></td></tr>
+              <tr><td><strong>Category:</strong></td><td>${activity.category}</td></tr>
+              <tr><td><strong>User:</strong></td><td>${activity.user}</td></tr>
+              <tr><td><strong>Session ID:</strong></td><td>${activity.session_id}</td></tr>
+            </table>
+          </div>
+          <div class="col-md-6">
+            <h6>Request Information</h6>
+            <table class="table table-sm">
+              <tr><td><strong>IP Address:</strong></td><td>${activity.ip_address}</td></tr>
+              <tr><td><strong>User Agent:</strong></td><td style="word-break: break-all;">${activity.user_agent}</td></tr>
+              ${activity.details.endpoint ? `<tr><td><strong>Endpoint:</strong></td><td>${activity.details.endpoint}</td></tr>` : ''}
+              ${activity.details.status_code ? `<tr><td><strong>Status Code:</strong></td><td>${activity.details.status_code}</td></tr>` : ''}
+              ${activity.details.duration ? `<tr><td><strong>Duration:</strong></td><td>${activity.details.duration}</td></tr>` : ''}
+            </table>
+          </div>
+        </div>
+        
+        <h6>Message</h6>
+        <div class="alert alert-${getLevelColor(activity.level).replace('danger', 'warning')} alert-dismissible">
+          ${activity.message}
+        </div>
+        
+        ${activity.details.additional_info ? `
+          <h6>Additional Information</h6>
+          <p>${activity.details.additional_info}</p>
+        ` : ''}
+      `;
+      
+      new bootstrap.Modal(document.getElementById('activityModal')).show();
+    }
+
+    function loadMoreActivities() {
+      currentPage++;
+      renderActivities(currentPage);
+    }
+
+    function refreshLogs() {
+      currentPage = 1;
+      loadActivities();
+      alert('Activity logs refreshed!');
+    }
+
+    function exportLogs() {
+      // Create CSV content
+      const csvContent = "data:text/csv;charset=utf-8," + 
+        "Timestamp,Level,Category,User,Action,IP Address,Status Code\n" +
+        filteredActivities.map(activity => 
+          `"${activity.timestamp}","${activity.level}","${activity.category}","${activity.user}","${activity.action}","${activity.ip_address}","${activity.details.status_code || 'N/A'}"`
+        ).join("\n");
+      
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `activity_logs_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      alert('Activity logs exported successfully!');
+    }
+
+    function toggleAutoRefresh() {
+      const enabled = document.getElementById('autoRefresh').checked;
+      
+      if (enabled) {
+        autoRefreshInterval = setInterval(() => {
+          loadActivities();
+        }, 30000); // Refresh every 30 seconds
+        alert('Auto refresh enabled (30 seconds)');
+      } else {
+        if (autoRefreshInterval) {
+          clearInterval(autoRefreshInterval);
+          autoRefreshInterval = null;
+        }
+        alert('Auto refresh disabled');
+      }
+    }
+
+    // Filter functionality
+    function setupFilters() {
+      document.getElementById('levelFilter').addEventListener('change', filterActivities);
+      document.getElementById('categoryFilter').addEventListener('change', filterActivities);
+      document.getElementById('userFilter').addEventListener('change', filterActivities);
+      document.getElementById('dateFilter').addEventListener('change', filterActivities);
+      document.getElementById('timeRange').addEventListener('change', filterActivities);
+      document.getElementById('searchLogs').addEventListener('input', filterActivities);
+    }
+
+    function filterActivities() {
+      const levelFilter = document.getElementById('levelFilter').value;
+      const categoryFilter = document.getElementById('categoryFilter').value;
+      const userFilter = document.getElementById('userFilter').value;
+      const dateFilter = document.getElementById('dateFilter').value;
+      const timeRange = document.getElementById('timeRange').value;
+      const search = document.getElementById('searchLogs').value.toLowerCase();
+      
+      let filtered = activities.filter(activity => {
+        // Level filter
+        const matchesLevel = !levelFilter || activity.level === levelFilter;
+        
+        // Category filter
+        const matchesCategory = !categoryFilter || activity.category === categoryFilter;
+        
+        // User filter
+        const matchesUser = !userFilter || 
+          (userFilter === 'admin' && activity.user.includes('admin')) ||
+          (userFilter === 'teacher' && activity.user.includes('teacher')) ||
+          (userFilter === 'student' && activity.user.includes('student'));
+        
+        // Date/time range filter
+        const activityDate = new Date(activity.timestamp);
+        let matchesTime = true;
+        
+        if (timeRange === 'today') {
+          matchesTime = activityDate.toDateString() === new Date().toDateString();
+        } else if (timeRange === 'week') {
+          const weekAgo = new Date();
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          matchesTime = activityDate >= weekAgo;
+        } else if (timeRange === 'month') {
+          const monthAgo = new Date();
+          monthAgo.setDate(monthAgo.getDate() - 30);
+          matchesTime = activityDate >= monthAgo;
+        }
+        
+        if (dateFilter) {
+          const filterDate = new Date(dateFilter);
+          matchesTime = activityDate.toDateString() === filterDate.toDateString();
+        }
+        
+        // Search filter
+        const matchesSearch = !search || 
+          activity.message.toLowerCase().includes(search) ||
+          activity.user.toLowerCase().includes(search) ||
+          activity.action.toLowerCase().includes(search);
+        
+        return matchesLevel && matchesCategory && matchesUser && matchesTime && matchesSearch;
+      });
+      
+      filteredActivities = filtered;
+      currentPage = 1;
+      renderActivities(1);
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      loadActivities();
+      setupFilters();
+    });
+  </script>
+</body>
+</html>

@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,61 +8,213 @@
 
   <!-- Bootstrap -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Font Awesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 
   <style>
-    body { background-color: #f8f9fa; }
-    .sidebar { height: 100vh; background-color: #1e3a8a; color: white; padding-top: 20px; }
-    .sidebar a { color: white; text-decoration: none; display:block; padding:10px 20px; border-radius:4px; margin-bottom:5px; }
-    .sidebar a:hover, .sidebar a.active { background-color: #3b82f6; }
+    body { background-color: #f8f9fa; min-height: 100vh; }
+    .sidebar a.active { background-color: #3b82f6 !important; }
     .header { background-color: white; padding:15px 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .card { border: none; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .card { border:none; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.05); }
     .table th, .table td { vertical-align: middle; }
-    .badge { font-size: 0.8rem; }
-    .modal-body textarea { resize: none; }
+    .template-card {
+      transition: all 0.3s ease;
+      border-left: 4px solid transparent;
+    }
+    .template-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .template-card.approved {
+      border-left-color: #22c55e;
+    }
+    .template-card.pending {
+      border-left-color: #f59e0b;
+    }
+    .template-card.draft {
+      border-left-color: #64748b;
+    }
+    .variable-tag {
+      background-color: #e5e7eb;
+      color: #374151;
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 12px;
+      margin: 2px;
+      cursor: pointer;
+    }
+    .variable-tag:hover {
+      background-color: #d1d5db;
+    }
+    .category-badge {
+      font-size: 0.75rem;
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+    .template-preview {
+      background: #f8fafc;
+      border: 2px dashed #cbd5e1;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 10px 0;
+    }
+    .template-variables {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 10px 0;
+    }
+    .stats-card {
+      background-color: #3b82f6;
+      color: white;
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+    }
+    .badge { font-size: 0.75rem; }
   </style>
 </head>
 <body>
+  <script>window.API_BASE = '{{ API_BASE }}';</script>
   <div class="container-fluid">
     <div class="row">
-      <!-- Sidebar dynamically loaded -->
-      <div class="col-md-2 p-0" id="sidebarContainer"></div>
+      <!-- Sidebar -->
+      <div class="col-md-2 p-0" id="sidebarContainer">
+        <noscript>{% include 'includes/sidebar.html' with role=user_role %}</noscript>
+        <div id="sidebarLoader" style="height:100vh;background:#1e3a8a;color:white;display:flex;align-items:center;justify-content:center;">
+          <div>Loading navigation...</div>
+        </div>
+      </div>
 
       <!-- Main content -->
       <div class="col-md-10">
         <div class="header d-flex justify-content-between align-items-center">
-          <h4>Manage Templates</h4>
-          <div><strong>User:</strong> admin1</div>
+          <div>
+            <h4 class="mb-0">Template Management</h4>
+            <div style="font-size: .85rem; color: #6b7280;">Create and manage SMS templates with variables</div>
+          </div>
+          <div class="text-end">
+            <div style="font-size: .85rem; color: #6b7280;">Signed in as</div>
+            <div><strong>{{ user.email }}</strong></div>
+          </div>
         </div>
 
         <div class="container mt-4">
-          <div class="card p-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <h5>Template Library</h5>
-              <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#templateModal">+ Add New Template</button>
-            </div>
-
-            <!-- Search bar -->
-            <div class="row mb-3">
-              <div class="col-md-4">
-                <input type="text" id="searchInput" class="form-control" placeholder="Search by name or category" oninput="filterTemplates()">
+          <!-- Stats Cards -->
+          <div class="row g-3 mb-4">
+            <div class="col-md-3">
+              <div class="stats-card">
+                <h6>Total Templates</h6>
+                <h3 id="totalTemplates">0</h3>
               </div>
             </div>
+            <div class="col-md-3">
+              <div class="card text-center p-3">
+                <h6>Approved</h6>
+                <h3 class="text-success" id="approvedCount">0</h3>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center p-3">
+                <h6>Pending</h6>
+                <h3 class="text-warning" id="pendingCount">0</h3>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center p-3">
+                <h6>Drafts</h6>
+                <h3 class="text-secondary" id="draftCount">0</h3>
+              </div>
+            </div>
+          </div>
 
-            <!-- Table -->
-            <div class="table-responsive">
-              <table class="table table-striped align-middle">
-                <thead class="table-light">
-                  <tr>
-                    <th>Name</th>
-                    <th>Category</th>
-                    <th>Message</th>
-                    <th>Status</th>
-                    <th>Created By</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody id="templateTableBody"></tbody>
-              </table>
+          <!-- Filter and Actions -->
+          <div class="card mb-4">
+            <div class="card-header bg-white">
+              <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Template Library</h5>
+                <div>
+                  <button class="btn btn-outline-success me-2" onclick="importTemplates()">
+                    <i class="fas fa-upload me-1"></i>Import
+                  </button>
+                  <button class="btn btn-outline-primary me-2" onclick="exportTemplates()">
+                    <i class="fas fa-download me-1"></i>Export
+                  </button>
+                  <button class="btn btn-primary" onclick="openTemplateModal()">
+                    <i class="fas fa-plus me-1"></i>Add Template
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="card-body">
+              <!-- Filters -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                  <input type="text" id="searchInput" class="form-control" placeholder="Search templates..." oninput="filterTemplates()">
+                </div>
+                <div class="col-md-2">
+                  <select id="categoryFilter" class="form-select" onchange="filterTemplates()">
+                    <option value="">All Categories</option>
+                    <option value="academic">Academic</option>
+                    <option value="administrative">Administrative</option>
+                    <option value="event">Event</option>
+                    <option value="notification">Notification</option>
+                    <option value="reminder">Reminder</option>
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <select id="statusFilter" class="form-select" onchange="filterTemplates()">
+                    <option value="">All Status</option>
+                    <option value="approved">Approved</option>
+                    <option value="pending">Pending</option>
+                    <option value="draft">Draft</option>
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <select id="viewMode" class="form-select" onchange="toggleViewMode()">
+                    <option value="table">Table View</option>
+                    <option value="cards">Card View</option>
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <button class="btn btn-outline-secondary w-100" onclick="resetFilters()" title="Reset Filters">
+                    <i class="fas fa-undo me-1"></i>Reset
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Table View -->
+          <div id="tableView" class="card">
+            <div class="card-body">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Template Name</th>
+                      <th>Category</th>
+                      <th>Variables</th>
+                      <th>Usage Count</th>
+                      <th>Status</th>
+                      <th>Created</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="templateTableBody">
+                    <!-- Templates will be loaded here -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card View -->
+          <div id="cardView" style="display: none;">
+            <div class="row" id="templateCards">
+              <!-- Template cards will be loaded here -->
             </div>
           </div>
         </div>
@@ -71,43 +224,196 @@
 
   <!-- Add/Edit Template Modal -->
   <div class="modal fade" id="templateModal" tabindex="-1" aria-labelledby="templateModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
       <div class="modal-content">
         <form id="templateForm" onsubmit="return handleTemplateSave(event)">
           <div class="modal-header">
-            <h5 class="modal-title" id="templateModalLabel">Add New Template</h5>
+            <h5 class="modal-title" id="templateModalLabel">
+              <i class="fas fa-file-alt me-2"></i>Add New Template
+            </h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
-            <div class="mb-3">
-              <label class="form-label">Template Name</label>
-              <input type="text" id="templateName" class="form-control" required>
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Category</label>
-              <select id="templateType" class="form-select" required>
-                <option value="">-- Select Category --</option>
-                <option value="student">Student</option>
-                <option value="teacher">Teacher</option>
-              </select>
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Message Content</label>
-              <textarea id="templateContent" class="form-control" rows="4" placeholder="Use variables like {student_name}, {teacher_name}, {date}, {event}" required></textarea>
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Status</label>
-              <select id="templateStatus" class="form-select">
-                <option value="Approved">Approved</option>
-                <option value="Pending">Pending</option>
-              </select>
+            <div class="row">
+              <div class="col-md-8">
+                <!-- Template Details -->
+                <div class="card mb-3">
+                  <div class="card-header">
+                    <h6 class="mb-0">Template Information</h6>
+                  </div>
+                  <div class="card-body">
+                    <div class="row g-3">
+                      <div class="col-md-6">
+                        <label class="form-label">Template Name <span class="text-danger">*</span></label>
+                        <input type="text" id="templateName" class="form-control" placeholder="Enter template name" required>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label">Category <span class="text-danger">*</span></label>
+                        <select id="templateCategory" class="form-select" required>
+                          <option value="">-- Select Category --</option>
+                          <option value="academic">Academic</option>
+                          <option value="administrative">Administrative</option>
+                          <option value="event">Event</option>
+                          <option value="notification">Notification</option>
+                          <option value="reminder">Reminder</option>
+                        </select>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label">Target Audience</label>
+                        <select id="templateAudience" class="form-select">
+                          <option value="students">Students</option>
+                          <option value="teachers">Teachers</option>
+                          <option value="parents">Parents</option>
+                          <option value="staff">Staff</option>
+                          <option value="all">All</option>
+                        </select>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label">Status</label>
+                        <select id="templateStatus" class="form-select">
+                          <option value="draft">Draft</option>
+                          <option value="pending">Pending Approval</option>
+                          <option value="approved">Approved</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Message Content -->
+                <div class="card">
+                  <div class="card-header">
+                    <h6 class="mb-0">Message Content</h6>
+                  </div>
+                  <div class="card-body">
+                    <div class="mb-3">
+                      <label class="form-label">Subject Line</label>
+                      <input type="text" id="templateSubject" class="form-control" placeholder="Enter subject line">
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label">Message Body <span class="text-danger">*</span></label>
+                      <textarea id="templateContent" class="form-control" rows="6" 
+                                placeholder="Type your message here. Use variables like {student_name}, {date}, {event}..." 
+                                required oninput="updatePreview()"></textarea>
+                      <div class="form-text">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Character count: <span id="charCount">0</span>/160 (SMS limit)
+                      </div>
+                    </div>
+                    
+                    <!-- Live Preview -->
+                    <div class="template-preview">
+                      <h6>Preview:</h6>
+                      <div id="messagePreview" class="text-muted">
+                        Your message preview will appear here...
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-md-4">
+                <!-- Variable Helper -->
+                <div class="card mb-3">
+                  <div class="card-header">
+                    <h6 class="mb-0">Available Variables</h6>
+                  </div>
+                  <div class="card-body">
+                    <div class="template-variables">
+                      <h6 class="small">Student Variables:</h6>
+                      <div class="mb-2">
+                        <span class="variable-tag" onclick="insertVariable('{student_name}')">{student_name}</span>
+                        <span class="variable-tag" onclick="insertVariable('{student_id}')">{student_id}</span>
+                        <span class="variable-tag" onclick="insertVariable('{class}')">{class}</span>
+                        <span class="variable-tag" onclick="insertVariable('{roll_no}')">{roll_no}</span>
+                      </div>
+                      
+                      <h6 class="small mt-3">General Variables:</h6>
+                      <div class="mb-2">
+                        <span class="variable-tag" onclick="insertVariable('{date}')">{date}</span>
+                        <span class="variable-tag" onclick="insertVariable('{time}')">{time}</span>
+                        <span class="variable-tag" onclick="insertVariable('{event}')">{event}</span>
+                        <span class="variable-tag" onclick="insertVariable('{venue}')">{venue}</span>
+                      </div>
+                      
+                      <h6 class="small mt-3">Academic Variables:</h6>
+                      <div class="mb-2">
+                        <span class="variable-tag" onclick="insertVariable('{subject}')">{subject}</span>
+                        <span class="variable-tag" onclick="insertVariable('{marks}')">{marks}</span>
+                        <span class="variable-tag" onclick="insertVariable('{grade}')">{grade}</span>
+                        <span class="variable-tag" onclick="insertVariable('{assignment}')">{assignment}</span>
+                      </div>
+
+                      <h6 class="small mt-3">Contact Variables:</h6>
+                      <div>
+                        <span class="variable-tag" onclick="insertVariable('{teacher_name}')">{teacher_name}</span>
+                        <span class="variable-tag" onclick="insertVariable('{parent_name}')">{parent_name}</span>
+                        <span class="variable-tag" onclick="insertVariable('{college_name}')">{college_name}</span>
+                      </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                      <small class="text-muted">
+                        <i class="fas fa-lightbulb me-1"></i>
+                        Click on variables to insert them into your message
+                      </small>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Template Statistics -->
+                <div class="card">
+                  <div class="card-header">
+                    <h6 class="mb-0">Template Info</h6>
+                  </div>
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                      <span>Estimated Cost:</span>
+                      <span class="fw-bold" id="estimatedCost">₹0.00</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                      <span>Variables Used:</span>
+                      <span class="fw-bold" id="variableCount">0</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                      <span>Message Type:</span>
+                      <span class="fw-bold" id="messageType">SMS</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-primary">Save Template</button>
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+              <i class="fas fa-times me-1"></i>Cancel
+            </button>
+            <button type="button" class="btn btn-outline-primary" onclick="previewTemplate()">
+              <i class="fas fa-eye me-1"></i>Preview
+            </button>
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save me-1"></i>Save Template
+            </button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Template Preview Modal -->
+  <div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="previewModalLabel">Template Preview</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="previewContent">
+          <!-- Preview content will be loaded here -->
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
       </div>
     </div>
   </div>
@@ -115,125 +421,652 @@
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // Dummy templates data
+    // Initialize page
+    document.addEventListener('DOMContentLoaded', function() {
+      loadSidebar();
+      initializePage();
+      loadTemplates();
+    });
+
+    // Enhanced template data
     let templates = [
       {
         id: 1,
-        name: "Attendance Alert",
-        type: "student",
-        message: "Dear parent, your child {student_name} was absent on {date}.",
-        status: "Approved",
-        created_by: "Admin"
+        name: "Student Attendance Alert",
+        subject: "Attendance Notification",
+        category: "notification",
+        audience: "parents",
+        message: "Dear {parent_name}, your child {student_name} (Class: {class}, Roll No: {roll_no}) was absent on {date}. Please contact the school if this is an error.",
+        variables: ["parent_name", "student_name", "class", "roll_no", "date"],
+        status: "approved",
+        created_by: "Academic Office",
+        created_date: "2025-01-10",
+        usage_count: 45,
+        last_used: "2025-01-14"
       },
       {
         id: 2,
-        name: "Event Reminder",
-        type: "student",
-        message: "Dear {student_name}, you are invited to {event} on {date}.",
-        status: "Approved",
-        created_by: "Teacher"
+        name: "Exam Schedule Notification",
+        subject: "Semester Examination Schedule",
+        category: "academic",
+        audience: "students",
+        message: "Dear {student_name}, your {subject} examination is scheduled on {date} at {time}. Venue: {venue}. Please arrive 30 minutes early. Best wishes!",
+        variables: ["student_name", "subject", "date", "time", "venue"],
+        status: "approved",
+        created_by: "Examination Cell",
+        created_date: "2025-01-08",
+        usage_count: 120,
+        last_used: "2025-01-13"
       },
       {
         id: 3,
-        name: "Teacher Meeting",
-        type: "teacher",
-        message: "Dear {teacher_name}, please attend the meeting on {date} regarding {event}.",
-        status: "Pending",
-        created_by: "Admin"
+        name: "Fee Payment Reminder",
+        subject: "Fee Payment Due",
+        category: "reminder",
+        audience: "parents",
+        message: "Dear {parent_name}, the fee payment for {student_name} (Class: {class}) is due on {date}. Amount: ₹{amount}. Please pay to avoid late charges.",
+        variables: ["parent_name", "student_name", "class", "date", "amount"],
+        status: "pending",
+        created_by: "Accounts Department",
+        created_date: "2025-01-12",
+        usage_count: 0,
+        last_used: null
+      },
+      {
+        id: 4,
+        name: "Event Invitation",
+        subject: "College Event Invitation",
+        category: "event",
+        audience: "all",
+        message: "Dear {student_name}, you are cordially invited to {event} on {date} at {venue}. Time: {time}. Your participation is highly appreciated.",
+        variables: ["student_name", "event", "date", "venue", "time"],
+        status: "approved",
+        created_by: "Cultural Committee",
+        created_date: "2025-01-05",
+        usage_count: 200,
+        last_used: "2025-01-11"
+      },
+      {
+        id: 5,
+        name: "Assignment Submission",
+        subject: "Assignment Due",
+        category: "academic",
+        audience: "students",
+        message: "Dear {student_name}, your {assignment} for {subject} is due on {date}. Please submit before {time} to avoid penalty.",
+        variables: ["student_name", "assignment", "subject", "date", "time"],
+        status: "draft",
+        created_by: "Faculty",
+        created_date: "2025-01-14",
+        usage_count: 0,
+        last_used: null
       }
     ];
 
+    let filteredTemplates = [...templates];
     let editingId = null;
+    let currentView = 'table';
 
-    // Render table
-    function renderTemplates(data = templates) {
-      const tbody = document.getElementById("templateTableBody");
-      tbody.innerHTML = "";
-      data.forEach(t => {
-        const statusClass = t.status === "Approved" ? "bg-success" : "bg-warning text-dark";
-        tbody.innerHTML += `
+    function initializePage() {
+      updateStats();
+      document.getElementById('templateContent').addEventListener('input', updatePreview);
+    }
+
+    function updateStats() {
+      const approved = templates.filter(t => t.status === 'approved').length;
+      const pending = templates.filter(t => t.status === 'pending').length;
+      const draft = templates.filter(t => t.status === 'draft').length;
+
+      document.getElementById('totalTemplates').textContent = templates.length;
+      document.getElementById('approvedCount').textContent = approved;
+      document.getElementById('pendingCount').textContent = pending;
+      document.getElementById('draftCount').textContent = draft;
+    }
+
+    function loadTemplates() {
+      if (currentView === 'table') {
+        renderTableView();
+      } else {
+        renderCardView();
+      }
+    }
+
+    function renderTableView() {
+      const tbody = document.getElementById('templateTableBody');
+      tbody.innerHTML = '';
+
+      if (filteredTemplates.length === 0) {
+        tbody.innerHTML = `
           <tr>
-            <td>${t.name}</td>
-            <td><span class="badge bg-secondary">${t.type}</span></td>
-            <td><code>${t.message}</code></td>
-            <td><span class="badge ${statusClass}">${t.status}</span></td>
-            <td>${t.created_by}</td>
-            <td>
-              <button class="btn btn-sm btn-outline-primary me-1" onclick="editTemplate(${t.id})">Edit</button>
-              <button class="btn btn-sm btn-outline-danger" onclick="deleteTemplate(${t.id})">Delete</button>
+            <td colspan="7" class="text-center py-4 text-muted">
+              <i class="fas fa-file-alt fa-2x mb-2"></i>
+              <div>No templates found matching your criteria</div>
             </td>
           </tr>
         `;
-      });
-    }
-
-    // Add/Edit handler
-    function handleTemplateSave(e) {
-      e.preventDefault();
-      const name = document.getElementById("templateName").value.trim();
-      const type = document.getElementById("templateType").value;
-      const message = document.getElementById("templateContent").value.trim();
-      const status = document.getElementById("templateStatus").value;
-
-      if (!name || !type || !message) {
-        alert("Please fill in all fields.");
         return;
       }
 
-      if (editingId) {
-        // Update existing
-        const index = templates.findIndex(t => t.id === editingId);
-        templates[index] = { id: editingId, name, type, message, status, created_by: "Admin" };
-        alert("Template updated successfully!");
-      } else {
-        // Add new
-        const newId = templates.length ? Math.max(...templates.map(t => t.id)) + 1 : 1;
-        templates.push({ id: newId, name, type, message, status, created_by: "Admin" });
-        alert("Template added successfully!");
-      }
-
-      editingId = null;
-      document.getElementById("templateForm").reset();
-      const modal = bootstrap.Modal.getInstance(document.getElementById("templateModal"));
-      modal.hide();
-      renderTemplates();
+      filteredTemplates.forEach(template => {
+        const statusBadge = getStatusBadge(template.status);
+        const categoryBadge = getCategoryBadge(template.category);
+        
+        const row = `
+          <tr>
+            <td>
+              <div class="fw-bold">${template.name}</div>
+              <div class="text-muted small">${template.subject || 'No subject'}</div>
+            </td>
+            <td>${categoryBadge}</td>
+            <td>
+              <div class="d-flex flex-wrap">
+                ${template.variables.map(v => `<span class="variable-tag me-1 mb-1">{${v}}</span>`).join('')}
+              </div>
+            </td>
+            <td>
+              <span class="badge bg-primary">${template.usage_count}</span>
+              ${template.last_used ? `<div class="text-muted small">Last: ${formatDate(template.last_used)}</div>` : ''}
+            </td>
+            <td class="text-center">${statusBadge}</td>
+            <td>
+              <div class="text-muted small">${template.created_by}</div>
+              <div class="text-muted small">${formatDate(template.created_date)}</div>
+            </td>
+            <td>
+              <div class="btn-group" role="group">
+                <button class="btn btn-sm btn-outline-info" onclick="viewTemplate(${template.id})" title="View Details">
+                  <i class="fas fa-eye"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-primary" onclick="editTemplate(${template.id})" title="Edit">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-success" onclick="duplicateTemplate(${template.id})" title="Duplicate">
+                  <i class="fas fa-copy"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteTemplate(${template.id})" title="Delete">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+        tbody.insertAdjacentHTML('beforeend', row);
+      });
     }
 
-    // Edit
-    function editTemplate(id) {
-      const t = templates.find(t => t.id === id);
-      if (!t) return;
+    function renderCardView() {
+      const container = document.getElementById('templateCards');
+      container.innerHTML = '';
 
-      editingId = id;
-      document.getElementById("templateModalLabel").textContent = "Edit Template";
-      document.getElementById("templateName").value = t.name;
-      document.getElementById("templateType").value = t.type;
-      document.getElementById("templateContent").value = t.message;
-      document.getElementById("templateStatus").value = t.status;
+      if (filteredTemplates.length === 0) {
+        container.innerHTML = `
+          <div class="col-12 text-center py-5">
+            <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">No templates found</h5>
+            <p class="text-muted">Try adjusting your filters or create a new template</p>
+          </div>
+        `;
+        return;
+      }
 
-      const modal = new bootstrap.Modal(document.getElementById("templateModal"));
+      filteredTemplates.forEach(template => {
+        const statusBadge = getStatusBadge(template.status);
+        const categoryBadge = getCategoryBadge(template.category);
+        
+        const card = `
+          <div class="col-md-6 col-lg-4 mb-3">
+            <div class="card template-card ${template.status}" style="height: 100%;">
+              <div class="card-header d-flex justify-content-between align-items-start">
+                <div>
+                  <h6 class="mb-1">${template.name}</h6>
+                  <small class="text-muted">${template.subject || 'No subject'}</small>
+                </div>
+                ${statusBadge}
+              </div>
+              <div class="card-body">
+                <div class="mb-2">${categoryBadge}</div>
+                <p class="card-text small text-muted" style="height: 60px; overflow: hidden;">
+                  ${template.message.substring(0, 120)}${template.message.length > 120 ? '...' : ''}
+                </p>
+                <div class="mb-2">
+                  <small class="text-muted">Variables (${template.variables.length}):</small>
+                  <div class="mt-1">
+                    ${template.variables.slice(0, 3).map(v => `<span class="variable-tag me-1">{${v}}</span>`).join('')}
+                    ${template.variables.length > 3 ? '<span class="text-muted">...</span>' : ''}
+                  </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center text-muted small">
+                  <span>Used: ${template.usage_count} times</span>
+                  <span>${template.created_by}</span>
+                </div>
+              </div>
+              <div class="card-footer bg-transparent">
+                <div class="btn-group w-100" role="group">
+                  <button class="btn btn-sm btn-outline-info" onclick="viewTemplate(${template.id})" title="View">
+                    <i class="fas fa-eye"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-primary" onclick="editTemplate(${template.id})" title="Edit">
+                    <i class="fas fa-edit"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-success" onclick="duplicateTemplate(${template.id})" title="Duplicate">
+                    <i class="fas fa-copy"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger" onclick="deleteTemplate(${template.id})" title="Delete">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        container.insertAdjacentHTML('beforeend', card);
+      });
+    }
+
+    function filterTemplates() {
+      const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+      const categoryFilter = document.getElementById('categoryFilter').value;
+      const statusFilter = document.getElementById('statusFilter').value;
+
+      filteredTemplates = templates.filter(template => {
+        const matchesSearch = !searchTerm || 
+          template.name.toLowerCase().includes(searchTerm) ||
+          template.message.toLowerCase().includes(searchTerm) ||
+          template.subject.toLowerCase().includes(searchTerm) ||
+          template.variables.some(v => v.toLowerCase().includes(searchTerm));
+
+        const matchesCategory = !categoryFilter || template.category === categoryFilter;
+        const matchesStatus = !statusFilter || template.status === statusFilter;
+
+        return matchesSearch && matchesCategory && matchesStatus;
+      });
+
+      loadTemplates();
+    }
+
+    function resetFilters() {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('categoryFilter').value = '';
+      document.getElementById('statusFilter').value = '';
+      
+      filteredTemplates = [...templates];
+      loadTemplates();
+    }
+
+    function toggleViewMode() {
+      const viewMode = document.getElementById('viewMode').value;
+      currentView = viewMode;
+      
+      const tableView = document.getElementById('tableView');
+      const cardView = document.getElementById('cardView');
+      
+      if (viewMode === 'table') {
+        tableView.style.display = 'block';
+        cardView.style.display = 'none';
+      } else {
+        tableView.style.display = 'none';
+        cardView.style.display = 'block';
+      }
+      
+      loadTemplates();
+    }
+
+    function openTemplateModal() {
+      editingId = null;
+      document.getElementById('templateModalLabel').innerHTML = '<i class="fas fa-plus me-2"></i>Add New Template';
+      document.getElementById('templateForm').reset();
+      document.getElementById('messagePreview').textContent = 'Your message preview will appear here...';
+      document.getElementById('charCount').textContent = '0';
+      
+      const modal = new bootstrap.Modal(document.getElementById('templateModal'));
       modal.show();
     }
 
-    // Delete
+    function handleTemplateSave(e) {
+      e.preventDefault();
+      
+      const name = document.getElementById('templateName').value.trim();
+      const category = document.getElementById('templateCategory').value;
+      const audience = document.getElementById('templateAudience').value;
+      const subject = document.getElementById('templateSubject').value.trim();
+      const message = document.getElementById('templateContent').value.trim();
+      const status = document.getElementById('templateStatus').value;
+
+      if (!name || !category || !message) {
+        alert('Please fill in all required fields.');
+        return false;
+      }
+
+      // Extract variables from message
+      const variables = [...new Set(message.match(/{([^}]+)}/g)?.map(v => v.slice(1, -1)) || [])];
+
+      const templateData = {
+        name,
+        subject,
+        category,
+        audience,
+        message,
+        variables,
+        status,
+        created_by: 'Current User',
+        created_date: new Date().toISOString().split('T')[0],
+        usage_count: 0,
+        last_used: null
+      };
+
+      if (editingId) {
+        const index = templates.findIndex(t => t.id === editingId);
+        templates[index] = { ...templateData, id: editingId };
+        showAlert('Template updated successfully!', 'success');
+      } else {
+        const newId = templates.length > 0 ? Math.max(...templates.map(t => t.id)) + 1 : 1;
+        templates.push({ ...templateData, id: newId });
+        showAlert('Template created successfully!', 'success');
+      }
+
+      const modal = bootstrap.Modal.getInstance(document.getElementById('templateModal'));
+      modal.hide();
+      
+      filteredTemplates = [...templates];
+      updateStats();
+      loadTemplates();
+      
+      return false;
+    }
+
+    function editTemplate(id) {
+      const template = templates.find(t => t.id === id);
+      if (!template) return;
+
+      editingId = id;
+      document.getElementById('templateModalLabel').innerHTML = '<i class="fas fa-edit me-2"></i>Edit Template';
+      document.getElementById('templateName').value = template.name;
+      document.getElementById('templateCategory').value = template.category;
+      document.getElementById('templateAudience').value = template.audience;
+      document.getElementById('templateSubject').value = template.subject || '';
+      document.getElementById('templateContent').value = template.message;
+      document.getElementById('templateStatus').value = template.status;
+
+      updatePreview();
+      
+      const modal = new bootstrap.Modal(document.getElementById('templateModal'));
+      modal.show();
+    }
+
+    function viewTemplate(id) {
+      const template = templates.find(t => t.id === id);
+      if (!template) return;
+
+      const modal = `
+        <div class="modal fade" id="viewTemplateModal" tabindex="-1">
+          <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">${template.name}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <strong>Category:</strong> ${getCategoryBadge(template.category)}
+                  </div>
+                  <div class="col-md-6">
+                    <strong>Status:</strong> ${getStatusBadge(template.status)}
+                  </div>
+                  <div class="col-md-6">
+                    <strong>Target:</strong> ${template.audience}
+                  </div>
+                  <div class="col-md-6">
+                    <strong>Usage:</strong> ${template.usage_count} times
+                  </div>
+                  <div class="col-12">
+                    <strong>Subject:</strong> ${template.subject || 'No subject'}
+                  </div>
+                  <div class="col-12">
+                    <strong>Message:</strong>
+                    <div class="template-preview mt-2">
+                      ${template.message}
+                    </div>
+                  </div>
+                  <div class="col-12">
+                    <strong>Variables (${template.variables.length}):</strong>
+                    <div class="mt-2">
+                      ${template.variables.map(v => `<span class="variable-tag me-1">{${v}}</span>`).join('')}
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <strong>Created By:</strong> ${template.created_by}
+                  </div>
+                  <div class="col-md-6">
+                    <strong>Created On:</strong> ${formatDate(template.created_date)}
+                  </div>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-outline-primary" onclick="editTemplate(${id}); document.getElementById('viewTemplateModal').querySelector('.btn-close').click();">
+                  <i class="fas fa-edit me-1"></i>Edit Template
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.querySelectorAll('#viewTemplateModal').forEach(el => el.remove());
+      document.body.insertAdjacentHTML('beforeend', modal);
+      
+      const modalInstance = new bootstrap.Modal(document.getElementById('viewTemplateModal'));
+      modalInstance.show();
+    }
+
+    function duplicateTemplate(id) {
+      const template = templates.find(t => t.id === id);
+      if (!template) return;
+
+      const newTemplate = {
+        ...template,
+        id: Math.max(...templates.map(t => t.id)) + 1,
+        name: template.name + ' (Copy)',
+        status: 'draft',
+        usage_count: 0,
+        last_used: null,
+        created_date: new Date().toISOString().split('T')[0]
+      };
+
+      templates.push(newTemplate);
+      filteredTemplates = [...templates];
+      updateStats();
+      loadTemplates();
+      
+      showAlert('Template duplicated successfully!', 'info');
+    }
+
     function deleteTemplate(id) {
-      if (!confirm("Are you sure you want to delete this template?")) return;
+      const template = templates.find(t => t.id === id);
+      if (!template) return;
+
+      if (!confirm(`Are you sure you want to delete "${template.name}"?`)) return;
+
       templates = templates.filter(t => t.id !== id);
-      renderTemplates();
+      filteredTemplates = [...templates];
+      updateStats();
+      loadTemplates();
+      
+      showAlert('Template deleted successfully!', 'warning');
     }
 
-    // Filter
-    function filterTemplates() {
-      const query = document.getElementById("searchInput").value.toLowerCase();
-      const filtered = templates.filter(t =>
-        t.name.toLowerCase().includes(query) ||
-        t.type.toLowerCase().includes(query)
-      );
-      renderTemplates(filtered);
+    function insertVariable(variable) {
+      const textarea = document.getElementById('templateContent');
+      const cursorPos = textarea.selectionStart;
+      const textBefore = textarea.value.substring(0, cursorPos);
+      const textAfter = textarea.value.substring(cursorPos);
+      
+      textarea.value = textBefore + variable + textAfter;
+      textarea.focus();
+      textarea.setSelectionRange(cursorPos + variable.length, cursorPos + variable.length);
+      
+      updatePreview();
     }
 
-    // Initial render
-    renderTemplates();
+    function updatePreview() {
+      const message = document.getElementById('templateContent').value;
+      const charCount = message.length;
+      
+      document.getElementById('charCount').textContent = charCount;
+      document.getElementById('messagePreview').textContent = message || 'Your message preview will appear here...';
+      
+      // Update variable count
+      const variables = [...new Set(message.match(/{([^}]+)}/g)?.map(v => v.slice(1, -1)) || [])];
+      document.getElementById('variableCount').textContent = variables.length;
+      
+      // Update estimated cost (₹0.10 per SMS)
+      const smsCount = Math.ceil(charCount / 160) || 1;
+      document.getElementById('estimatedCost').textContent = `₹${(smsCount * 0.10).toFixed(2)}`;
+      
+      // Update message type
+      document.getElementById('messageType').textContent = charCount > 160 ? 'Long SMS' : 'SMS';
+    }
+
+    function previewTemplate() {
+      const name = document.getElementById('templateName').value;
+      const message = document.getElementById('templateContent').value;
+      const subject = document.getElementById('templateSubject').value;
+      
+      if (!message) {
+        alert('Please enter a message to preview');
+        return;
+      }
+
+      // Sample data for preview
+      const sampleData = {
+        student_name: 'John Doe',
+        parent_name: 'Mr. Smith',
+        class: 'B.E. 1st Year',
+        roll_no: '21CS001',
+        date: '2025-01-15',
+        time: '10:00 AM',
+        event: 'Annual Day',
+        venue: 'College Auditorium',
+        subject: 'Mathematics',
+        assignment: 'Calculus Assignment',
+        marks: '85',
+        grade: 'A',
+        amount: '5000',
+        teacher_name: 'Prof. Johnson',
+        college_name: 'DBIT College'
+      };
+
+      let previewMessage = message;
+      Object.keys(sampleData).forEach(key => {
+        const regex = new RegExp(`{${key}}`, 'g');
+        previewMessage = previewMessage.replace(regex, sampleData[key]);
+      });
+
+      const previewContent = `
+        <div class="card">
+          <div class="card-header">
+            <h6>${name || 'Template Preview'}</h6>
+            ${subject ? `<small class="text-muted">Subject: ${subject}</small>` : ''}
+          </div>
+          <div class="card-body">
+            <div class="template-preview">
+              ${previewMessage}
+            </div>
+            <hr>
+            <small class="text-muted">
+              <i class="fas fa-info-circle me-1"></i>
+              This is a preview with sample data. Actual messages will use real recipient information.
+            </small>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('previewContent').innerHTML = previewContent;
+      
+      const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+      modal.show();
+    }
+
+    function importTemplates() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json,.csv';
+      input.onchange = function(e) {
+        const file = e.target.files[0];
+        if (file) {
+          showAlert('Import functionality will be available in the full version.', 'info');
+        }
+      };
+      input.click();
+    }
+
+    function exportTemplates() {
+      const dataStr = JSON.stringify(templates, null, 2);
+      const dataBlob = new Blob([dataStr], {type: 'application/json'});
+      
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(dataBlob);
+      link.download = 'sms_templates.json';
+      link.click();
+      
+      showAlert('Templates exported successfully!', 'success');
+    }
+
+    // Utility functions
+    function getStatusBadge(status) {
+      const badges = {
+        'approved': '<span class="badge bg-success">Approved</span>',
+        'pending': '<span class="badge bg-warning">Pending</span>',
+        'draft': '<span class="badge bg-secondary">Draft</span>'
+      };
+      return badges[status] || '<span class="badge bg-secondary">Unknown</span>';
+    }
+
+    function getCategoryBadge(category) {
+      const badges = {
+        'academic': '<span class="badge bg-primary category-badge">Academic</span>',
+        'administrative': '<span class="badge bg-info category-badge">Administrative</span>',
+        'event': '<span class="badge bg-success category-badge">Event</span>',
+        'notification': '<span class="badge bg-warning category-badge">Notification</span>',
+        'reminder': '<span class="badge bg-danger category-badge">Reminder</span>'
+      };
+      return badges[category] || '<span class="badge bg-secondary category-badge">Other</span>';
+    }
+
+    function formatDate(dateStr) {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+      });
+    }
+
+    function showAlert(message, type = 'info') {
+      // Simple alert for now - can be enhanced with toast notifications
+      const alertClass = type === 'success' ? 'alert-success' : 
+                        type === 'warning' ? 'alert-warning' : 
+                        type === 'danger' ? 'alert-danger' : 'alert-info';
+      
+      const alertDiv = `
+        <div class="alert ${alertClass} alert-dismissible fade show position-fixed" 
+             style="top: 20px; right: 20px; z-index: 9999;">
+          ${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      `;
+      
+      document.body.insertAdjacentHTML('beforeend', alertDiv);
+      
+      // Auto dismiss after 3 seconds
+      setTimeout(() => {
+        const alert = document.querySelector('.alert:last-child');
+        if (alert) {
+          const bsAlert = new bootstrap.Alert(alert);
+          bsAlert.close();
+        }
+      }, 3000);
+    }
   </script>
   
   <!-- Global Sidebar Loader -->

@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   <title>Login / Signup | SMS Portal</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <style>
     body {
       background: linear-gradient(135deg, #1e3a8a, #3b82f6);
@@ -49,20 +48,9 @@
       box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25);
     }
 
-    /* Login form */
-    .login-container {
-      left: 0;
-      z-index: 2;
-    }
+    .login-container { left: 0; z-index: 2; }
+    .signup-container { left: 0; opacity: 0; z-index: 1; }
 
-    /* Signup form */
-    .signup-container {
-      left: 0;
-      opacity: 0;
-      z-index: 1;
-    }
-
-    /* Overlay container */
     .overlay-container {
       position: absolute;
       top: 0;
@@ -79,11 +67,7 @@
       transition: all 0.6s ease-in-out;
     }
 
-    .overlay-container h4 {
-      font-weight: bold;
-      margin-bottom: 1rem;
-    }
-
+    .overlay-container h4 { font-weight: bold; margin-bottom: 1rem; }
     .overlay-container button {
       background-color: white;
       color: #1e3a8a;
@@ -94,64 +78,44 @@
       cursor: pointer;
       transition: 0.3s;
     }
+    .overlay-container button:hover { background-color: #f1f5ff; }
 
-    .overlay-container button:hover {
-      background-color: #f1f5ff;
-    }
-
-    /* Toggle active state */
-    .auth-container.active .login-container {
-      transform: translateX(100%);
-      opacity: 0;
-      z-index: 1;
-    }
-
-    .auth-container.active .signup-container {
-      transform: translateX(100%);
-      opacity: 1;
-      z-index: 2;
-    }
-
-    .auth-container.active .overlay-container {
-      transform: translateX(-100%);
-    }
+    .auth-container.active .login-container { transform: translateX(100%); opacity: 0; z-index: 1; }
+    .auth-container.active .signup-container { transform: translateX(100%); opacity: 1; z-index: 2; }
+    .auth-container.active .overlay-container { transform: translateX(-100%); }
 
     @media (max-width: 768px) {
-      .auth-container {
-        flex-direction: column;
-        height: auto;
-      }
-      .form-container, .overlay-container {
-        position: relative;
-        width: 100%;
-        transform: none !important;
-      }
+      .auth-container { flex-direction: column; height: auto; }
+      .form-container, .overlay-container { position: relative; width: 100%; transform: none !important; }
     }
+
+    .alert-fixed { position: fixed; top: 20px; right: 20px; z-index: 1050; min-width: 260px; }
   </style>
 </head>
 <body>
+  <!-- API base constant (mounted in /api/) -->
+  <script>const API_BASE = "/api";</script>
+
   <div class="auth-container" id="authContainer">
     <!-- Login Form -->
     <div class="form-container login-container">
       <h3>Welcome Back 👋</h3>
+
+      <!-- Alert placeholder -->
+      <div id="loginAlert"></div>
+
       <form id="loginForm" onsubmit="return handleLogin(event)">
         <div class="mb-3">
-          <label class="form-label">Email / Username</label>
-          <input type="text" class="form-control" id="loginUsername" placeholder="Enter username" required>
+          <label class="form-label">Email</label>
+          <input type="email" class="form-control" id="loginEmail" placeholder="Enter email" required />
         </div>
         <div class="mb-3">
           <label class="form-label">Password</label>
-          <input type="password" class="form-control" id="loginPassword" placeholder="Enter password" required>
+          <input type="password" class="form-control" id="loginPassword" placeholder="Enter password" required />
         </div>
-        <div class="mb-3">
-          <label class="form-label">Role</label>
-          <select id="loginRole" class="form-select" required>
-            <option value="">-- Select Role --</option>
-            <option value="admin">Admin</option>
-            <option value="teacher">Teacher</option>
-          </select>
-        </div>
-        <button class="btn btn-primary w-100" type="submit">Login</button>
+
+        <button class="btn btn-primary w-100" id="loginSubmit" type="submit">Login</button>
+
         <div class="text-center mt-3">
           <small><a href="#">Forgot Password?</a></small>
         </div>
@@ -161,18 +125,22 @@
     <!-- Signup Form -->
     <div class="form-container signup-container">
       <h3>Create Account ✨</h3>
+
+      <!-- Alert placeholder -->
+      <div id="signupAlert"></div>
+
       <form id="signupForm" onsubmit="return handleSignup(event)">
         <div class="mb-3">
           <label class="form-label">Full Name</label>
-          <input type="text" id="signupName" class="form-control" placeholder="Enter full name" required>
+          <input type="text" id="signupName" class="form-control" placeholder="Enter full name" required />
         </div>
         <div class="mb-3">
           <label class="form-label">Email</label>
-          <input type="email" id="signupEmail" class="form-control" placeholder="Enter email" required>
+          <input type="email" id="signupEmail" class="form-control" placeholder="Enter email" required />
         </div>
         <div class="mb-3">
           <label class="form-label">Password</label>
-          <input type="password" id="signupPassword" class="form-control" placeholder="Enter password" required>
+          <input type="password" id="signupPassword" class="form-control" placeholder="Enter password" required />
         </div>
         <div class="mb-3">
           <label class="form-label">Role</label>
@@ -181,8 +149,9 @@
             <option value="teacher">Teacher</option>
             <option value="admin">Admin</option>
           </select>
+          <div class="form-text">Requesting 'admin' role may require manual approval server-side.</div>
         </div>
-        <button class="btn btn-primary w-100" type="submit">Sign Up</button>
+        <button class="btn btn-primary w-100" id="signupSubmit" type="submit">Sign Up</button>
       </form>
     </div>
 
@@ -194,7 +163,10 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
   <script>
+    // UI helpers
     const container = document.getElementById("authContainer");
     const toggleButton = document.getElementById("toggleButton");
     const overlayTitle = document.getElementById("overlayTitle");
@@ -202,6 +174,9 @@
 
     function toggleForm() {
       container.classList.toggle("active");
+      clearAlert('loginAlert');
+      clearAlert('signupAlert');
+
       if (container.classList.contains("active")) {
         overlayTitle.textContent = "Welcome Back!";
         overlayText.textContent = "Already have an account? Log in to your dashboard.";
@@ -213,31 +188,116 @@
       }
     }
 
-    // ✅ LOGIN HANDLER
-    function handleLogin(e) {
+    function showAlert(containerId, message, type='danger', timeout=6000) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+          ${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>`;
+      if (timeout) setTimeout(() => { clearAlert(containerId); }, timeout);
+    }
+    function clearAlert(containerId) {
+      const container = document.getElementById(containerId);
+      if (container) container.innerHTML = '';
+    }
+    function setFormDisabled(formId, disabled=true) {
+      const form = document.getElementById(formId);
+      if (!form) return;
+      Array.from(form.elements).forEach(el => el.disabled = disabled);
+    }
+
+    // -----------------------------
+    // robust network helper
+    // -----------------------------
+    async function safeFetchJson(url, options = {}) {
+      const resp = await fetch(url, options);
+      const contentType = resp.headers.get('content-type') || '';
+      const text = await resp.text();
+
+      if (!resp.ok) {
+        let message;
+        if (contentType.includes('application/json')) {
+          try {
+            const json = JSON.parse(text);
+            message = json.detail || json.message || JSON.stringify(json);
+          } catch (e) {
+            message = text.slice(0,1000);
+          }
+        } else {
+          // likely an HTML error page (404)
+          message = text.slice(0,1000);
+        }
+        const err = new Error(`HTTP ${resp.status}: ${message}`);
+        err.status = resp.status;
+        err.contentType = contentType;
+        err.body = text;
+        throw err;
+      }
+
+      if (contentType.includes('application/json')) {
+        return JSON.parse(text);
+      }
+      return { _contentType: contentType, _text: text };
+    }
+
+    // -----------------------------
+    // LOGIN / SIGNUP handlers
+    // -----------------------------
+    async function handleLogin(e) {
       e.preventDefault();
+      clearAlert('loginAlert');
 
-      const username = document.getElementById("loginUsername").value.trim();
+      const email = document.getElementById("loginEmail").value.trim();
       const password = document.getElementById("loginPassword").value.trim();
-      const role = document.getElementById("loginRole").value;
-
-      if (!username || !password || !role) {
-        alert("Please fill in all fields.");
+      if (!email || !password) {
+        showAlert('loginAlert', 'Please fill in both email and password.', 'warning');
         return;
       }
 
-      // Simulate authentication (replace with API call later)
-      localStorage.setItem("isLoggedIn", "true");
-      localStorage.setItem("username", username);
-      localStorage.setItem("role", role);
+      setFormDisabled('loginForm', true);
+      document.getElementById('loginSubmit').textContent = 'Signing in...';
 
-      alert(`✅ ${role.charAt(0).toUpperCase() + role.slice(1)} logged in successfully!`);
-      window.location.href = "/dashboard/";
+      try {
+        const LOGIN_URL = `${API_BASE}/auth/login/`;
+        const data = await safeFetchJson(LOGIN_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        if (data && data._contentType && data._contentType.includes('text/html')) {
+          showAlert('loginAlert', 'Server returned HTML (404?). Check endpoint URL. Preview: ' + data._text.slice(0,300), 'danger', 10000);
+          return;
+        }
+
+        if (data.tokens) {
+          localStorage.setItem('accessToken', data.tokens.access);
+          localStorage.setItem('refreshToken', data.tokens.refresh);
+          
+          // Also set cookies for backend authentication
+          document.cookie = `accessToken=${data.tokens.access}; path=/; SameSite=Lax`;
+          document.cookie = `refreshToken=${data.tokens.refresh}; path=/; SameSite=Lax`;
+        }
+        if (data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+          localStorage.setItem('role', data.user.role || 'teacher');
+        }
+
+        // redirect to dashboard page (frontend route, not API)
+        window.location.href = '/dashboard/';
+      } catch (err) {
+        console.error('Login error', err);
+        showAlert('loginAlert', err.message || 'Login failed', 'danger', 8000);
+      } finally {
+        setFormDisabled('loginForm', false);
+        document.getElementById('loginSubmit').textContent = 'Login';
+      }
     }
 
-    // ✅ SIGNUP HANDLER
-    function handleSignup(e) {
+    async function handleSignup(e) {
       e.preventDefault();
+      clearAlert('signupAlert');
 
       const name = document.getElementById("signupName").value.trim();
       const email = document.getElementById("signupEmail").value.trim();
@@ -245,14 +305,68 @@
       const role = document.getElementById("signupRole").value;
 
       if (!name || !email || !password || !role) {
-        alert("Please fill in all fields.");
+        showAlert('signupAlert', 'Please complete all fields.', 'warning');
         return;
       }
 
-      // Simulated signup
-      alert(`✅ ${role.charAt(0).toUpperCase() + role.slice(1)} account created successfully!`);
-      toggleForm();
+      setFormDisabled('signupForm', true);
+      document.getElementById('signupSubmit').textContent = 'Creating...';
+
+      try {
+        const REGISTER_URL = `${API_BASE}/auth/register/`;
+        const payload = {
+          username: name.replace(/\s+/g, '').toLowerCase().slice(0, 30),
+          email,
+          password,
+          password_confirm: password,
+          phone_number: '',
+          company: '',
+          role
+        };
+
+        const data = await safeFetchJson(REGISTER_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (data && data._contentType && data._contentType.includes('text/html')) {
+          showAlert('signupAlert', 'Server returned HTML. Check endpoint URL. Preview: ' + data._text.slice(0,300), 'danger', 10000);
+          return;
+        }
+
+        showAlert('signupAlert', 'Account created successfully. Redirecting...', 'success', 3000);
+
+        if (data.tokens) {
+          localStorage.setItem('accessToken', data.tokens.access);
+          localStorage.setItem('refreshToken', data.tokens.refresh);
+          
+          // Also set cookies for backend authentication
+          document.cookie = `accessToken=${data.tokens.access}; path=/; SameSite=Lax`;
+          document.cookie = `refreshToken=${data.tokens.refresh}; path=/; SameSite=Lax`;
+        }
+        if (data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+          localStorage.setItem('role', data.user.role || role);
+        }
+
+        setTimeout(() => { window.location.href = '/dashboard/'; }, 900);
+      } catch (err) {
+        console.error('Signup error', err);
+        showAlert('signupAlert', err.message || 'Signup failed', 'danger', 10000);
+      } finally {
+        setFormDisabled('signupForm', false);
+        document.getElementById('signupSubmit').textContent = 'Sign Up';
+      }
     }
+
+    // Expose some helpers for debugging if needed
+    window._authHelpers = {
+      safeFetchJson,
+      API_BASE,
+      handleLogin,
+      handleSignup
+    };
   </script>
 </body>
 </html>

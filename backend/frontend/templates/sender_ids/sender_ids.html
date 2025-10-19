@@ -1,0 +1,579 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sender IDs | SMS Portal</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Font Awesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+  <style>
+    body { background-color: #f8f9fa; min-height: 100vh; }
+    .sidebar a.active { background-color: #3b82f6 !important; }
+    .header { background-color: white; padding:15px 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .card { border:none; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.05); }
+    .table th, .table td { vertical-align: middle; }
+    .badge { font-size: 0.75rem; }
+    .sender-id-card {
+      transition: all 0.3s ease;
+      border-left: 4px solid transparent;
+    }
+    .sender-id-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .sender-id-card.active {
+      border-left-color: #22c55e;
+    }
+    .sender-id-card.pending {
+      border-left-color: #f59e0b;
+    }
+    .sender-id-card.rejected {
+      border-left-color: #ef4444;
+    }
+  </style>
+</head>
+<body>
+  <script>window.API_BASE = '{{ API_BASE }}';</script>
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Sidebar -->
+      <div class="col-md-2 p-0" id="sidebarContainer">
+        <noscript>{% include 'includes/sidebar.html' with role=user_role %}</noscript>
+        <div id="sidebarLoader" style="height:100vh;background:#1e3a8a;color:white;display:flex;align-items:center;justify-content:center;">
+          <div>Loading navigation...</div>
+        </div>
+      </div>
+
+      <!-- Main content -->
+      <div class="col-md-10">
+        <div class="header d-flex justify-content-between align-items-center">
+          <div>
+            <h4 class="mb-0">Sender ID Management</h4>
+            <div style="font-size: .85rem; color: #6b7280;">Manage your SMS sender identities</div>
+          </div>
+          <div class="text-end">
+            <div style="font-size: .85rem; color: #6b7280;">Signed in as</div>
+            <div><strong>{{ user.email }}</strong></div>
+          </div>
+        </div>
+
+        <div class="container mt-4">
+          <!-- Stats Cards -->
+          <div class="row g-3 mb-4">
+            <div class="col-md-3">
+              <div class="card text-center p-3">
+                <h6>Total Sender IDs</h6>
+                <h3 class="text-primary" id="totalSenderIds">0</h3>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center p-3">
+                <h6>Active</h6>
+                <h3 class="text-success" id="activeSenderIds">0</h3>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center p-3">
+                <h6>Pending</h6>
+                <h3 class="text-warning" id="pendingSenderIds">0</h3>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center p-3">
+                <h6>Rejected</h6>
+                <h3 class="text-danger" id="rejectedSenderIds">0</h3>
+              </div>
+            </div>
+          </div>
+
+          <!-- Filter and Actions -->
+          <div class="card mb-4">
+            <div class="card-header bg-white">
+              <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Sender IDs</h5>
+                <div>
+                  <button class="btn btn-outline-primary me-2" onclick="refreshSenderIds()">
+                    <i class="fas fa-refresh me-1"></i>Refresh
+                  </button>
+                  <button class="btn btn-primary" onclick="openSenderIdModal()">
+                    <i class="fas fa-plus me-1"></i>Request New Sender ID
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="card-body">
+              <!-- Filters -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <input type="text" id="searchInput" class="form-control" placeholder="Search sender IDs..." oninput="filterSenderIds()">
+                </div>
+                <div class="col-md-3">
+                  <select id="statusFilter" class="form-select" onchange="filterSenderIds()">
+                    <option value="">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="pending">Pending</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <select id="typeFilter" class="form-select" onchange="filterSenderIds()">
+                    <option value="">All Types</option>
+                    <option value="alphanumeric">Alphanumeric</option>
+                    <option value="numeric">Numeric</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sender IDs List -->
+          <div class="row" id="senderIdsContainer">
+            <!-- Sender ID cards will be loaded here -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Request Sender ID Modal -->
+  <div class="modal fade" id="senderIdModal" tabindex="-1" aria-labelledby="senderIdModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <form id="senderIdForm" onsubmit="return handleSenderIdRequest(event)">
+          <div class="modal-header">
+            <h5 class="modal-title" id="senderIdModalLabel">
+              <i class="fas fa-id-badge me-2"></i>Request New Sender ID
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Sender ID <span class="text-danger">*</span></label>
+                <input type="text" id="senderIdName" class="form-control" placeholder="Enter sender ID" required maxlength="6">
+                <div class="form-text">Maximum 6 characters for alphanumeric sender IDs</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Type <span class="text-danger">*</span></label>
+                <select id="senderIdType" class="form-select" required>
+                  <option value="">Select type</option>
+                  <option value="alphanumeric">Alphanumeric</option>
+                  <option value="numeric">Numeric</option>
+                </select>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Purpose/Use Case <span class="text-danger">*</span></label>
+                <textarea id="senderIdPurpose" class="form-control" rows="3" 
+                          placeholder="Describe the intended use of this sender ID..." required></textarea>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Business/Organization Name</label>
+                <input type="text" id="organizationName" class="form-control" placeholder="Your business or organization name">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Contact Person</label>
+                <input type="text" id="contactPerson" class="form-control" placeholder="Contact person name">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Contact Phone</label>
+                <input type="tel" id="contactPhone" class="form-control" placeholder="Contact phone number">
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+              <i class="fas fa-times me-1"></i>Cancel
+            </button>
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-paper-plane me-1"></i>Submit Request
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    // Initialize page
+    document.addEventListener('DOMContentLoaded', function() {
+      loadSidebar();
+      initializePage();
+      loadSenderIds();
+    });
+
+    // Sample sender IDs data
+    const senderIdsData = [
+      {
+        id: 1,
+        sender_id: 'DBIT',
+        type: 'alphanumeric',
+        status: 'active',
+        purpose: 'College notifications and announcements',
+        organization: 'Don Bosco Institute of Technology',
+        contact_person: 'Admin Office',
+        contact_phone: '+91-9876543210',
+        requested_date: '2025-01-01',
+        approved_date: '2025-01-05',
+        usage_count: 1250,
+        last_used: '2025-01-14'
+      },
+      {
+        id: 2,
+        sender_id: 'ALERTS',
+        type: 'alphanumeric',
+        status: 'active',
+        purpose: 'Emergency alerts and important notifications',
+        organization: 'Don Bosco Institute of Technology',
+        contact_person: 'Security Office',
+        contact_phone: '+91-9876543211',
+        requested_date: '2024-12-15',
+        approved_date: '2024-12-20',
+        usage_count: 85,
+        last_used: '2025-01-12'
+      },
+      {
+        id: 3,
+        sender_id: 'EXAM',
+        type: 'alphanumeric',
+        status: 'pending',
+        purpose: 'Examination related notifications',
+        organization: 'Don Bosco Institute of Technology',
+        contact_person: 'Exam Office',
+        contact_phone: '+91-9876543212',
+        requested_date: '2025-01-10',
+        approved_date: null,
+        usage_count: 0,
+        last_used: null
+      },
+      {
+        id: 4,
+        sender_id: 'FEE',
+        type: 'alphanumeric',
+        status: 'rejected',
+        purpose: 'Fee payment reminders',
+        organization: 'Don Bosco Institute of Technology',
+        contact_person: 'Accounts Office',
+        contact_phone: '+91-9876543213',
+        requested_date: '2024-12-01',
+        approved_date: null,
+        usage_count: 0,
+        last_used: null,
+        rejection_reason: 'Sender ID too generic. Please use a more specific identifier.'
+      }
+    ];
+
+    let filteredSenderIds = [...senderIdsData];
+
+    function initializePage() {
+      updateStats();
+    }
+
+    function updateStats() {
+      const total = senderIdsData.length;
+      const active = senderIdsData.filter(s => s.status === 'active').length;
+      const pending = senderIdsData.filter(s => s.status === 'pending').length;
+      const rejected = senderIdsData.filter(s => s.status === 'rejected').length;
+
+      document.getElementById('totalSenderIds').textContent = total;
+      document.getElementById('activeSenderIds').textContent = active;
+      document.getElementById('pendingSenderIds').textContent = pending;
+      document.getElementById('rejectedSenderIds').textContent = rejected;
+    }
+
+    function loadSenderIds() {
+      const container = document.getElementById('senderIdsContainer');
+      container.innerHTML = '';
+
+      if (filteredSenderIds.length === 0) {
+        container.innerHTML = `
+          <div class="col-12 text-center py-5">
+            <i class="fas fa-id-badge fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">No sender IDs found</h5>
+            <p class="text-muted">Request a new sender ID to get started</p>
+          </div>
+        `;
+        return;
+      }
+
+      filteredSenderIds.forEach(senderId => {
+        const statusBadge = getStatusBadge(senderId.status);
+        const typeBadge = getTypeBadge(senderId.type);
+        
+        const card = `
+          <div class="col-md-6 col-lg-4 mb-3">
+            <div class="card sender-id-card ${senderId.status}" style="height: 100%;">
+              <div class="card-header d-flex justify-content-between align-items-start">
+                <div>
+                  <h6 class="mb-1">${senderId.sender_id}</h6>
+                  <small class="text-muted">${senderId.organization}</small>
+                </div>
+                <div class="d-flex flex-column align-items-end">
+                  ${statusBadge}
+                  <div class="mt-1">${typeBadge}</div>
+                </div>
+              </div>
+              <div class="card-body">
+                <p class="card-text small text-muted mb-3">
+                  ${senderId.purpose}
+                </p>
+                
+                <div class="row g-2 small mb-3">
+                  <div class="col-6">
+                    <strong>Requested:</strong><br>
+                    <span class="text-muted">${formatDate(senderId.requested_date)}</span>
+                  </div>
+                  <div class="col-6">
+                    <strong>${senderId.status === 'active' ? 'Approved:' : 'Status:'}</strong><br>
+                    <span class="text-muted">${senderId.approved_date ? formatDate(senderId.approved_date) : senderId.status}</span>
+                  </div>
+                  ${senderId.status === 'active' ? `
+                    <div class="col-6">
+                      <strong>Usage:</strong><br>
+                      <span class="text-muted">${senderId.usage_count} messages</span>
+                    </div>
+                    <div class="col-6">
+                      <strong>Last Used:</strong><br>
+                      <span class="text-muted">${senderId.last_used ? formatDate(senderId.last_used) : 'Never'}</span>
+                    </div>
+                  ` : ''}
+                </div>
+
+                ${senderId.rejection_reason ? `
+                  <div class="alert alert-danger alert-sm p-2 mb-2">
+                    <small><strong>Rejection Reason:</strong><br>${senderId.rejection_reason}</small>
+                  </div>
+                ` : ''}
+
+                <div class="d-flex justify-content-between align-items-center">
+                  <small class="text-muted">Contact: ${senderId.contact_person}</small>
+                  <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-outline-info" onclick="viewSenderIdDetails(${senderId.id})" title="View Details">
+                      <i class="fas fa-eye"></i>
+                    </button>
+                    ${senderId.status === 'active' ? `
+                      <button class="btn btn-sm btn-outline-primary" onclick="useSenderId('${senderId.sender_id}')" title="Use for SMS">
+                        <i class="fas fa-paper-plane"></i>
+                      </button>
+                    ` : ''}
+                    ${senderId.status === 'rejected' ? `
+                      <button class="btn btn-sm btn-outline-warning" onclick="resubmitSenderId(${senderId.id})" title="Resubmit">
+                        <i class="fas fa-redo"></i>
+                      </button>
+                    ` : ''}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        container.insertAdjacentHTML('beforeend', card);
+      });
+    }
+
+    function filterSenderIds() {
+      const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+      const statusFilter = document.getElementById('statusFilter').value;
+      const typeFilter = document.getElementById('typeFilter').value;
+
+      filteredSenderIds = senderIdsData.filter(senderId => {
+        const matchesSearch = !searchTerm || 
+          senderId.sender_id.toLowerCase().includes(searchTerm) ||
+          senderId.purpose.toLowerCase().includes(searchTerm) ||
+          senderId.organization.toLowerCase().includes(searchTerm);
+
+        const matchesStatus = !statusFilter || senderId.status === statusFilter;
+        const matchesType = !typeFilter || senderId.type === typeFilter;
+
+        return matchesSearch && matchesStatus && matchesType;
+      });
+
+      loadSenderIds();
+    }
+
+    function openSenderIdModal() {
+      document.getElementById('senderIdForm').reset();
+      const modal = new bootstrap.Modal(document.getElementById('senderIdModal'));
+      modal.show();
+    }
+
+    function handleSenderIdRequest(e) {
+      e.preventDefault();
+      
+      const formData = {
+        sender_id: document.getElementById('senderIdName').value.trim(),
+        type: document.getElementById('senderIdType').value,
+        purpose: document.getElementById('senderIdPurpose').value.trim(),
+        organization: document.getElementById('organizationName').value.trim(),
+        contact_person: document.getElementById('contactPerson').value.trim(),
+        contact_phone: document.getElementById('contactPhone').value.trim()
+      };
+
+      if (!formData.sender_id || !formData.type || !formData.purpose) {
+        alert('Please fill in all required fields.');
+        return false;
+      }
+
+      // Simulate API call
+      showAlert('Sender ID request submitted successfully! It will be reviewed by administrators.', 'success');
+      
+      const modal = bootstrap.Modal.getInstance(document.getElementById('senderIdModal'));
+      modal.hide();
+      
+      return false;
+    }
+
+    function viewSenderIdDetails(id) {
+      const senderId = senderIdsData.find(s => s.id === id);
+      if (!senderId) return;
+
+      const modal = `
+        <div class="modal fade" id="senderIdDetailsModal" tabindex="-1">
+          <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">Sender ID Details: ${senderId.sender_id}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <strong>Sender ID:</strong> ${senderId.sender_id}
+                  </div>
+                  <div class="col-md-6">
+                    <strong>Type:</strong> ${senderId.type}
+                  </div>
+                  <div class="col-md-6">
+                    <strong>Status:</strong> ${getStatusBadge(senderId.status)}
+                  </div>
+                  <div class="col-md-6">
+                    <strong>Organization:</strong> ${senderId.organization}
+                  </div>
+                  <div class="col-12">
+                    <strong>Purpose:</strong><br>
+                    ${senderId.purpose}
+                  </div>
+                  <div class="col-md-6">
+                    <strong>Contact Person:</strong> ${senderId.contact_person}
+                  </div>
+                  <div class="col-md-6">
+                    <strong>Contact Phone:</strong> ${senderId.contact_phone}
+                  </div>
+                  <div class="col-md-6">
+                    <strong>Requested Date:</strong> ${formatDate(senderId.requested_date)}
+                  </div>
+                  <div class="col-md-6">
+                    <strong>Approved Date:</strong> ${senderId.approved_date ? formatDate(senderId.approved_date) : 'N/A'}
+                  </div>
+                  ${senderId.status === 'active' ? `
+                    <div class="col-md-6">
+                      <strong>Total Usage:</strong> ${senderId.usage_count} messages
+                    </div>
+                    <div class="col-md-6">
+                      <strong>Last Used:</strong> ${senderId.last_used ? formatDate(senderId.last_used) : 'Never'}
+                    </div>
+                  ` : ''}
+                  ${senderId.rejection_reason ? `
+                    <div class="col-12">
+                      <strong>Rejection Reason:</strong><br>
+                      <div class="alert alert-danger">${senderId.rejection_reason}</div>
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.querySelectorAll('#senderIdDetailsModal').forEach(el => el.remove());
+      document.body.insertAdjacentHTML('beforeend', modal);
+      
+      const modalInstance = new bootstrap.Modal(document.getElementById('senderIdDetailsModal'));
+      modalInstance.show();
+    }
+
+    function useSenderId(senderId) {
+      // Redirect to send SMS page with this sender ID pre-selected
+      window.location.href = '/send/?sender_id=' + encodeURIComponent(senderId);
+    }
+
+    function resubmitSenderId(id) {
+      // In real implementation, this would open a form to resubmit
+      alert('Resubmit functionality will be available in the full version.');
+    }
+
+    function refreshSenderIds() {
+      // In real implementation, fetch fresh data from API
+      loadSenderIds();
+      updateStats();
+    }
+
+    // Utility functions
+    function getStatusBadge(status) {
+      const badges = {
+        'active': '<span class="badge bg-success">Active</span>',
+        'pending': '<span class="badge bg-warning">Pending</span>',
+        'rejected': '<span class="badge bg-danger">Rejected</span>'
+      };
+      return badges[status] || '<span class="badge bg-secondary">Unknown</span>';
+    }
+
+    function getTypeBadge(type) {
+      const badges = {
+        'alphanumeric': '<span class="badge bg-primary">Alphanumeric</span>',
+        'numeric': '<span class="badge bg-info">Numeric</span>'
+      };
+      return badges[type] || '<span class="badge bg-secondary">Unknown</span>';
+    }
+
+    function formatDate(dateStr) {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+      });
+    }
+
+    function showAlert(message, type = 'info') {
+      const alertClass = type === 'success' ? 'alert-success' : 
+                        type === 'warning' ? 'alert-warning' : 
+                        type === 'danger' ? 'alert-danger' : 'alert-info';
+      
+      const alertDiv = `
+        <div class="alert ${alertClass} alert-dismissible fade show position-fixed" 
+             style="top: 20px; right: 20px; z-index: 9999;">
+          ${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      `;
+      
+      document.body.insertAdjacentHTML('beforeend', alertDiv);
+      
+      setTimeout(() => {
+        const alert = document.querySelector('.alert:last-child');
+        if (alert) {
+          const bsAlert = new bootstrap.Alert(alert);
+          bsAlert.close();
+        }
+      }, 5000);
+    }
+  </script>
+
+  <!-- Global Sidebar Loader -->
+  <script src="/static/js/components/sidebar.js"></script>
+  <script src="/static/js/common/common.js"></script>
+</body>
+</html>
