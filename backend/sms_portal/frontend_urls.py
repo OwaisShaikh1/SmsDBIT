@@ -7,6 +7,7 @@ urlpatterns = [
     # Home/Dashboard
     path('', frontend_views.DashboardView.as_view(), name='home'),
     path('dashboard/', frontend_views.DashboardView.as_view(), name='dashboard'),
+    path('dashboard/page/', frontend_views.DashboardView.as_view(), name='dashboard_page'),  # Alias for compatibility
     
     # SMS Operations
     path('send/', frontend_views.SendSMSView.as_view(), name='send_sms'),
@@ -21,8 +22,15 @@ urlpatterns = [
     path('sender-ids/', frontend_views.SenderIDsView.as_view(), name='sender_ids'),
     
     # User Management
+    path('users/', frontend_views.UsersManagementView.as_view(), name='users_management'),
     path('profile/', frontend_views.UserProfileView.as_view(), name='user_profile'),
     path('activity/', frontend_views.ActivityLogView.as_view(), name='activity_log'),
+    
+    # Groups Management
+    path('groups/', frontend_views.GroupsManagementView.as_view(), name='groups_management'),
+    
+    # Template Approvals
+    path('approvals/', frontend_views.TemplateApprovalsView.as_view(), name='template_approvals'),
     
     # Authentication
     path('login/', frontend_views.LoginView.as_view(), name='login'),

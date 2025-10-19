@@ -1,0 +1,874 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SMS Portal — Contacts</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #f8f9fa; min-height: 100vh; }
+    .sidebar a.active { background-color: #3b82f6 !important; }
+    .header { background-color: white; padding: 15px 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .card { border: none; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+  </style>
+</head>
+<body>
+  <script>
+    window.API_BASE = '{{ API_BASE }}';
+  </script>
+
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-2 p-0" id="sidebarContainer">
+        <noscript>
+          {% include 'includes/sidebar.html' with role=user_role %}
+        </noscript>
+        <div id="sidebarLoader" style="height:100vh;background:#1e3a8a;color:white;display:flex;align-items:center;justify-content:center;">
+          <div>Loading navigation...</div>
+        </div>
+      </div>
+
+      <div class="col-md-10">
+        <div class="header d-flex justify-content-between align-items-center">
+          <div>
+            <h4 class="mb-0">Contacts</h4>
+            <div style="font-size: .85rem; color: #6b7280;">Manage your contact groups</div>
+          </div>
+          <div class="text-end">
+            <div style="font-size: .85rem; color: #6b7280;">Signed in as</div>
+            <div><strong>{{ user.email }}</strong></div>
+          </div>
+        </div>
+
+        <div class="container mt-4">
+          <!-- Stats Cards -->
+          <div class="row g-3 mb-4">
+            <div class="col-md-3">
+              <div class="card text-center p-3">
+                <h6>Total Contacts</h6>
+                <h3 class="text-primary" id="totalContacts">0</h3>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center p-3">
+                <h6>Students</h6>
+                <h3 class="text-success" id="studentsCount">0</h3>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center p-3">
+                <h6>Parents</h6>
+                <h3 class="text-info" id="parentsCount">0</h3>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center p-3">
+                <h6>Active Groups</h6>
+                <h3 class="text-warning" id="activeGroups">0</h3>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="card mb-4">
+            <div class="card-header bg-white">
+              <h5 class="mb-0">Quick Actions</h5>
+            </div>
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-md-3">
+                  <button class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#addContactModal">
+                    <i class="fas fa-plus"></i> Add New Contact
+                  </button>
+                </div>
+                <div class="col-md-3">
+                  <button class="btn btn-success w-100" data-bs-toggle="modal" data-bs-target="#importModal">
+                    <i class="fas fa-upload"></i> Import Contacts
+                  </button>
+                </div>
+                <div class="col-md-3">
+                  <button class="btn btn-info w-100" onclick="exportContacts()">
+                    <i class="fas fa-download"></i> Export Contacts
+                  </button>
+                </div>
+                <div class="col-md-3">
+                  <button class="btn btn-outline-primary w-100" data-bs-toggle="modal" data-bs-target="#createGroupModal">
+                    <i class="fas fa-users"></i> Create Group
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Filters and Search -->
+          <div class="card mb-4">
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-md-3">
+                  <select class="form-select" id="categoryFilter">
+                    <option value="">All Categories</option>
+                    <option value="students">Students</option>
+                    <option value="parents">Parents</option>
+                    <option value="colleagues">Colleagues</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <select class="form-select" id="groupFilter">
+                    <option value="">All Groups</option>
+                    <option value="class_10a">Class 10A</option>
+                    <option value="class_10b">Class 10B</option>
+                    <option value="parents_10a">Parents - 10A</option>
+                    <option value="math_dept">Math Department</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <select class="form-select" id="statusFilter">
+                    <option value="">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <input type="text" class="form-control" placeholder="Search contacts..." id="searchContacts">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Contact Groups Tab -->
+          <div class="card">
+            <div class="card-header bg-white">
+              <ul class="nav nav-tabs card-header-tabs" id="contactTabs">
+                <li class="nav-item">
+                  <a class="nav-link active" href="#contacts-tab" data-bs-toggle="tab">All Contacts</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="#groups-tab" data-bs-toggle="tab">Contact Groups</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="#recent-tab" data-bs-toggle="tab">Recent Activity</a>
+                </li>
+              </ul>
+            </div>
+            <div class="card-body">
+              <div class="tab-content">
+                <!-- All Contacts Tab -->
+                <div class="tab-pane fade show active" id="contacts-tab">
+                  <div class="table-responsive">
+                    <table class="table table-hover">
+                      <thead>
+                        <tr>
+                          <th>
+                            <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+                          </th>
+                          <th>Name</th>
+                          <th>Phone</th>
+                          <th>Email</th>
+                          <th>Category</th>
+                          <th>Groups</th>
+                          <th>Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody id="contactsTableBody">
+                        <!-- Contacts will be loaded here -->
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div>
+                      <button class="btn btn-outline-danger btn-sm" onclick="deleteSelectedContacts()" disabled id="deleteSelectedBtn">
+                        Delete Selected
+                      </button>
+                      <button class="btn btn-outline-primary btn-sm" onclick="addToGroupBulk()" disabled id="addToGroupBtn">
+                        Add to Group
+                      </button>
+                    </div>
+                    <nav>
+                      <ul class="pagination pagination-sm mb-0" id="contactsPagination">
+                        <!-- Pagination will be generated here -->
+                      </ul>
+                    </nav>
+                  </div>
+                </div>
+
+                <!-- Contact Groups Tab -->
+                <div class="tab-pane fade" id="groups-tab">
+                  <div class="row" id="groupsContainer">
+                    <!-- Groups will be loaded here -->
+                  </div>
+                </div>
+
+                <!-- Recent Activity Tab -->
+                <div class="tab-pane fade" id="recent-tab">
+                  <div class="timeline" id="recentActivity">
+                    <!-- Recent activity will be loaded here -->
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Add Contact Modal -->
+        <div class="modal fade" id="addContactModal" tabindex="-1">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">Add New Contact</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <form id="addContactForm" onsubmit="return saveContact(event)">
+                <div class="modal-body">
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label class="form-label">First Name</label>
+                      <input type="text" class="form-control" id="firstName" required>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label">Last Name</label>
+                      <input type="text" class="form-control" id="lastName" required>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label">Phone Number</label>
+                      <input type="tel" class="form-control" id="phoneNumber" required>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label">Email (Optional)</label>
+                      <input type="email" class="form-control" id="emailAddress">
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label">Category</label>
+                      <select class="form-select" id="contactCategory" required>
+                        <option value="">Select Category</option>
+                        <option value="students">Student</option>
+                        <option value="parents">Parent</option>
+                        <option value="colleagues">Colleague</option>
+                      </select>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label">Class/Department</label>
+                      <input type="text" class="form-control" id="classDepartment" placeholder="e.g., 10A, Math Dept">
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label">Groups</label>
+                      <select class="form-select" id="contactGroups" multiple>
+                        <option value="class_10a">Class 10A</option>
+                        <option value="class_10b">Class 10B</option>
+                        <option value="parents_10a">Parents - 10A</option>
+                        <option value="math_dept">Math Department</option>
+                      </select>
+                      <small class="text-muted">Hold Ctrl/Cmd to select multiple groups</small>
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label">Notes (Optional)</label>
+                      <textarea class="form-control" id="contactNotes" rows="2"></textarea>
+                    </div>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <button type="submit" class="btn btn-primary">Save Contact</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Import Contacts Modal -->
+        <div class="modal fade" id="importModal" tabindex="-1">
+          <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">Import Contacts</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <div class="mb-3">
+                  <label class="form-label">Upload CSV File</label>
+                  <input type="file" class="form-control" id="csvFile" accept=".csv" onchange="previewCSV()">
+                  <small class="text-muted">CSV format: Name, Phone, Email, Category, Class/Dept</small>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Or Paste Data</label>
+                  <textarea class="form-control" id="pasteData" rows="6" placeholder="Name,Phone,Email,Category,Class/Dept&#10;John Doe,+1234567890,john@example.com,student,10A&#10;Jane Smith,+1234567891,jane@example.com,parent,10A"></textarea>
+                </div>
+                <div id="csvPreview" class="d-none">
+                  <h6>Preview:</h6>
+                  <div class="table-responsive">
+                    <table class="table table-sm" id="previewTable">
+                      <!-- Preview will be shown here -->
+                    </table>
+                  </div>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="importContacts()">Import Contacts</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Create Group Modal -->
+        <div class="modal fade" id="createGroupModal" tabindex="-1">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">Create New Group</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <form id="createGroupForm" onsubmit="return createGroup(event)">
+                <div class="modal-body">
+                  <div class="mb-3">
+                    <label class="form-label">Group Name</label>
+                    <input type="text" class="form-control" id="groupName" required>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control" id="groupDescription" rows="2"></textarea>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Category</label>
+                    <select class="form-select" id="groupCategory" required>
+                      <option value="">Select Category</option>
+                      <option value="class">Class Group</option>
+                      <option value="parents">Parents Group</option>
+                      <option value="department">Department</option>
+                      <option value="custom">Custom Group</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <button type="submit" class="btn btn-primary">Create Group</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="{% static 'js/common/common.js' %}"></script>
+  
+  <script>
+    let contacts = [];
+    let groups = [];
+    let selectedContacts = new Set();
+    let currentPage = 1;
+    let itemsPerPage = 10;
+
+    // Initialize the contacts page
+    async function initializeContacts() {
+      await loadContacts();
+      await loadGroups();
+      updateStats();
+      renderContacts();
+      renderGroups();
+      renderRecentActivity();
+    }
+
+    async function loadContacts() {
+      try {
+        const response = await window.AppAuth.authFetch(`${window.AppAuth.API_BASE}/contacts/`);
+        if (response.ok) {
+          contacts = await response.json();
+        }
+      } catch (error) {
+        console.error('Error loading contacts:', error);
+        // Demo data for teachers
+        contacts = [
+          {
+            id: 1,
+            first_name: 'Rahul',
+            last_name: 'Sharma',
+            phone: '+91-9876543210',
+            email: 'rahul.sharma@student.com',
+            category: 'students',
+            class_dept: '10A',
+            groups: ['class_10a'],
+            status: 'active',
+            notes: 'Good in Mathematics',
+            created_at: '2025-01-10T10:30:00Z'
+          },
+          {
+            id: 2,
+            first_name: 'Priya',
+            last_name: 'Patel',
+            phone: '+91-9876543211',
+            email: 'priya.patel@student.com',
+            category: 'students',
+            class_dept: '10A',
+            groups: ['class_10a'],
+            status: 'active',
+            notes: 'Excellent student',
+            created_at: '2025-01-10T11:00:00Z'
+          },
+          {
+            id: 3,
+            first_name: 'Suresh',
+            last_name: 'Sharma',
+            phone: '+91-9876543212',
+            email: 'suresh.sharma@parent.com',
+            category: 'parents',
+            class_dept: '10A',
+            groups: ['parents_10a'],
+            status: 'active',
+            notes: 'Father of Rahul Sharma',
+            created_at: '2025-01-10T12:00:00Z'
+          },
+          {
+            id: 4,
+            first_name: 'Dr. Anjali',
+            last_name: 'Verma',
+            phone: '+91-9876543213',
+            email: 'anjali.verma@school.com',
+            category: 'colleagues',
+            class_dept: 'Math Dept',
+            groups: ['math_dept'],
+            status: 'active',
+            notes: 'HOD Mathematics',
+            created_at: '2025-01-09T14:30:00Z'
+          },
+          {
+            id: 5,
+            first_name: 'Amit',
+            last_name: 'Kumar',
+            phone: '+91-9876543214',
+            email: 'amit.kumar@student.com',
+            category: 'students',
+            class_dept: '10B',
+            groups: ['class_10b'],
+            status: 'active',
+            notes: 'Good in Science',
+            created_at: '2025-01-11T09:15:00Z'
+          },
+          {
+            id: 6,
+            first_name: 'Meera',
+            last_name: 'Patel',
+            phone: '+91-9876543215',
+            email: 'meera.patel@parent.com',
+            category: 'parents',
+            class_dept: '10A',
+            groups: ['parents_10a'],
+            status: 'active',
+            notes: 'Mother of Priya Patel',
+            created_at: '2025-01-11T10:45:00Z'
+          }
+        ];
+      }
+    }
+
+    async function loadGroups() {
+      try {
+        const response = await window.AppAuth.authFetch(`${window.AppAuth.API_BASE}/groups/`);
+        if (response.ok) {
+          groups = await response.json();
+        }
+      } catch (error) {
+        console.error('Error loading groups:', error);
+        // Demo groups
+        groups = [
+          {
+            id: 'class_10a',
+            name: 'Class 10A',
+            description: 'Students of Class 10A',
+            category: 'class',
+            member_count: 3,
+            created_at: '2025-01-05T00:00:00Z'
+          },
+          {
+            id: 'class_10b',
+            name: 'Class 10B',
+            description: 'Students of Class 10B',
+            category: 'class',
+            member_count: 1,
+            created_at: '2025-01-05T00:00:00Z'
+          },
+          {
+            id: 'parents_10a',
+            name: 'Parents - 10A',
+            description: 'Parents of Class 10A students',
+            category: 'parents',
+            member_count: 2,
+            created_at: '2025-01-06T00:00:00Z'
+          },
+          {
+            id: 'math_dept',
+            name: 'Math Department',
+            description: 'Mathematics department colleagues',
+            category: 'department',
+            member_count: 1,
+            created_at: '2025-01-07T00:00:00Z'
+          }
+        ];
+      }
+    }
+
+    function updateStats() {
+      const totalContacts = contacts.length;
+      const studentsCount = contacts.filter(c => c.category === 'students').length;
+      const parentsCount = contacts.filter(c => c.category === 'parents').length;
+      const activeGroups = groups.length;
+
+      document.getElementById('totalContacts').textContent = totalContacts;
+      document.getElementById('studentsCount').textContent = studentsCount;
+      document.getElementById('parentsCount').textContent = parentsCount;
+      document.getElementById('activeGroups').textContent = activeGroups;
+    }
+
+    function renderContacts(filteredContacts = contacts) {
+      const tbody = document.getElementById('contactsTableBody');
+      tbody.innerHTML = '';
+
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      const pageContacts = filteredContacts.slice(startIndex, endIndex);
+
+      pageContacts.forEach(contact => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>
+            <input type="checkbox" class="contact-checkbox" value="${contact.id}" onchange="updateSelection()">
+          </td>
+          <td>${contact.first_name} ${contact.last_name}</td>
+          <td>${contact.phone}</td>
+          <td>${contact.email || '-'}</td>
+          <td><span class="badge bg-${getCategoryColor(contact.category)}">${contact.category}</span></td>
+          <td>
+            ${contact.groups.map(g => {
+              const group = groups.find(gr => gr.id === g);
+              return `<span class="badge bg-light text-dark me-1">${group ? group.name : g}</span>`;
+            }).join('')}
+          </td>
+          <td><span class="badge bg-${contact.status === 'active' ? 'success' : 'secondary'}">${contact.status}</span></td>
+          <td>
+            <button class="btn btn-sm btn-outline-primary" onclick="editContact(${contact.id})">Edit</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteContact(${contact.id})">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+
+      // Update pagination
+      renderPagination(filteredContacts.length);
+    }
+
+    function renderGroups() {
+      const container = document.getElementById('groupsContainer');
+      container.innerHTML = '';
+
+      groups.forEach(group => {
+        const groupCard = document.createElement('div');
+        groupCard.className = 'col-md-4 mb-3';
+        groupCard.innerHTML = `
+          <div class="card">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <h6 class="card-title mb-0">${group.name}</h6>
+                <span class="badge bg-primary">${group.member_count}</span>
+              </div>
+              <p class="card-text text-muted small">${group.description}</p>
+              <div class="d-flex justify-content-between align-items-center">
+                <small class="text-muted">${new Date(group.created_at).toLocaleDateString()}</small>
+                <div>
+                  <button class="btn btn-sm btn-outline-primary" onclick="viewGroup('${group.id}')">View</button>
+                  <button class="btn btn-sm btn-outline-success" onclick="sendToGroup('${group.id}')">Send SMS</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        container.appendChild(groupCard);
+      });
+    }
+
+    function renderRecentActivity() {
+      const container = document.getElementById('recentActivity');
+      const activities = [
+        { action: 'Added new contact', details: 'Rahul Sharma to Class 10A', time: '2 hours ago' },
+        { action: 'SMS sent', details: 'To Parents - 10A group (5 recipients)', time: '4 hours ago' },
+        { action: 'Group created', details: 'Math Department group', time: '1 day ago' },
+        { action: 'Contact updated', details: 'Updated Priya Patel information', time: '2 days ago' },
+        { action: 'Bulk import', details: 'Imported 15 new student contacts', time: '3 days ago' }
+      ];
+
+      container.innerHTML = activities.map(activity => `
+        <div class="d-flex mb-3">
+          <div class="flex-shrink-0">
+            <div class="bg-primary text-white rounded-circle p-2" style="width: 35px; height: 35px; display: flex; align-items: center; justify-content: center;">
+              <i class="fas fa-user" style="font-size: 12px;"></i>
+            </div>
+          </div>
+          <div class="flex-grow-1 ms-3">
+            <h6 class="mb-1">${activity.action}</h6>
+            <p class="mb-1 text-muted">${activity.details}</p>
+            <small class="text-muted">${activity.time}</small>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderPagination(totalItems) {
+      const totalPages = Math.ceil(totalItems / itemsPerPage);
+      const pagination = document.getElementById('contactsPagination');
+      pagination.innerHTML = '';
+
+      for (let i = 1; i <= totalPages; i++) {
+        const li = document.createElement('li');
+        li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+        li.innerHTML = `<a class="page-link" href="#" onclick="changePage(${i})">${i}</a>`;
+        pagination.appendChild(li);
+      }
+    }
+
+    function getCategoryColor(category) {
+      const colors = {
+        'students': 'primary',
+        'parents': 'success',
+        'colleagues': 'info'
+      };
+      return colors[category] || 'secondary';
+    }
+
+    async function saveContact(event) {
+      event.preventDefault();
+
+      const contactData = {
+        first_name: document.getElementById('firstName').value,
+        last_name: document.getElementById('lastName').value,
+        phone: document.getElementById('phoneNumber').value,
+        email: document.getElementById('emailAddress').value,
+        category: document.getElementById('contactCategory').value,
+        class_dept: document.getElementById('classDepartment').value,
+        groups: Array.from(document.getElementById('contactGroups').selectedOptions).map(option => option.value),
+        notes: document.getElementById('contactNotes').value,
+        status: 'active'
+      };
+
+      try {
+        const response = await window.AppAuth.authFetch(`${window.AppAuth.API_BASE}/contacts/`, {
+          method: 'POST',
+          body: JSON.stringify(contactData)
+        });
+
+        if (response.ok) {
+          alert('Contact saved successfully!');
+          bootstrap.Modal.getInstance(document.getElementById('addContactModal')).hide();
+          loadContacts().then(() => {
+            updateStats();
+            renderContacts();
+          });
+        } else {
+          alert('Error saving contact');
+        }
+      } catch (error) {
+        console.error('Error saving contact:', error);
+        // Demo: simulate success
+        const newContact = {
+          id: contacts.length + 1,
+          ...contactData,
+          created_at: new Date().toISOString()
+        };
+        contacts.push(newContact);
+        updateStats();
+        renderContacts();
+        bootstrap.Modal.getInstance(document.getElementById('addContactModal')).hide();
+        alert('Contact saved successfully! (Demo mode)');
+      }
+
+      // Reset form
+      document.getElementById('addContactForm').reset();
+    }
+
+    function editContact(id) {
+      const contact = contacts.find(c => c.id === id);
+      if (contact) {
+        document.getElementById('firstName').value = contact.first_name;
+        document.getElementById('lastName').value = contact.last_name;
+        document.getElementById('phoneNumber').value = contact.phone;
+        document.getElementById('emailAddress').value = contact.email || '';
+        document.getElementById('contactCategory').value = contact.category;
+        document.getElementById('classDepartment').value = contact.class_dept;
+        document.getElementById('contactNotes').value = contact.notes || '';
+        
+        // Set selected groups
+        const groupSelect = document.getElementById('contactGroups');
+        Array.from(groupSelect.options).forEach(option => {
+          option.selected = contact.groups.includes(option.value);
+        });
+
+        new bootstrap.Modal(document.getElementById('addContactModal')).show();
+      }
+    }
+
+    function deleteContact(id) {
+      const contact = contacts.find(c => c.id === id);
+      if (confirm(`Are you sure you want to delete ${contact.first_name} ${contact.last_name}?`)) {
+        contacts = contacts.filter(c => c.id !== id);
+        updateStats();
+        renderContacts();
+        alert('Contact deleted successfully! (Demo mode)');
+      }
+    }
+
+    function exportContacts() {
+      const csvContent = "data:text/csv;charset=utf-8," + 
+        "Name,Phone,Email,Category,Class/Dept,Groups,Status,Notes\n" +
+        contacts.map(contact => 
+          `"${contact.first_name} ${contact.last_name}","${contact.phone}","${contact.email || ''}","${contact.category}","${contact.class_dept}","${contact.groups.join(';')}","${contact.status}","${contact.notes || ''}"`
+        ).join("\n");
+      
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `contacts_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      alert('Contacts exported successfully!');
+    }
+
+    function importContacts() {
+      const pastedData = document.getElementById('pasteData').value;
+      if (!pastedData.trim()) {
+        alert('Please paste contact data or select a CSV file');
+        return;
+      }
+
+      const lines = pastedData.trim().split('\n');
+      const headers = lines[0].split(',');
+      const newContacts = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',');
+        if (values.length >= 4) {
+          const [name, phone, email, category, classDept] = values;
+          const [firstName, ...lastNameParts] = name.trim().split(' ');
+          
+          newContacts.push({
+            id: contacts.length + i,
+            first_name: firstName,
+            last_name: lastNameParts.join(' '),
+            phone: phone.trim(),
+            email: email.trim(),
+            category: category.trim().toLowerCase(),
+            class_dept: classDept ? classDept.trim() : '',
+            groups: [],
+            status: 'active',
+            notes: '',
+            created_at: new Date().toISOString()
+          });
+        }
+      }
+
+      contacts.push(...newContacts);
+      updateStats();
+      renderContacts();
+      bootstrap.Modal.getInstance(document.getElementById('importModal')).hide();
+      alert(`${newContacts.length} contacts imported successfully! (Demo mode)`);
+      
+      document.getElementById('pasteData').value = '';
+    }
+
+    function createGroup(event) {
+      event.preventDefault();
+
+      const groupData = {
+        id: `group_${Date.now()}`,
+        name: document.getElementById('groupName').value,
+        description: document.getElementById('groupDescription').value,
+        category: document.getElementById('groupCategory').value,
+        member_count: 0,
+        created_at: new Date().toISOString()
+      };
+
+      groups.push(groupData);
+      renderGroups();
+      updateStats();
+      bootstrap.Modal.getInstance(document.getElementById('createGroupModal')).hide();
+      alert('Group created successfully! (Demo mode)');
+      
+      document.getElementById('createGroupForm').reset();
+    }
+
+    function viewGroup(groupId) {
+      const group = groups.find(g => g.id === groupId);
+      const groupContacts = contacts.filter(c => c.groups.includes(groupId));
+      
+      alert(`Group: ${group.name}\nMembers: ${groupContacts.length}\nContacts: ${groupContacts.map(c => c.first_name + ' ' + c.last_name).join(', ')}`);
+    }
+
+    function sendToGroup(groupId) {
+      const group = groups.find(g => g.id === groupId);
+      alert(`Redirecting to Send SMS page with group "${group.name}" pre-selected...`);
+      window.location.href = `/send/?group=${groupId}`;
+    }
+
+    function toggleSelectAll() {
+      const selectAll = document.getElementById('selectAll');
+      const checkboxes = document.querySelectorAll('.contact-checkbox');
+      
+      checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAll.checked;
+      });
+      
+      updateSelection();
+    }
+
+    function updateSelection() {
+      const checkboxes = document.querySelectorAll('.contact-checkbox:checked');
+      selectedContacts = new Set(Array.from(checkboxes).map(cb => parseInt(cb.value)));
+      
+      const deleteBtn = document.getElementById('deleteSelectedBtn');
+      const addToGroupBtn = document.getElementById('addToGroupBtn');
+      
+      deleteBtn.disabled = selectedContacts.size === 0;
+      addToGroupBtn.disabled = selectedContacts.size === 0;
+    }
+
+    function changePage(page) {
+      currentPage = page;
+      renderContacts();
+    }
+
+    // Filter functions
+    document.getElementById('categoryFilter').addEventListener('change', filterContacts);
+    document.getElementById('groupFilter').addEventListener('change', filterContacts);
+    document.getElementById('statusFilter').addEventListener('change', filterContacts);
+    document.getElementById('searchContacts').addEventListener('input', filterContacts);
+
+    function filterContacts() {
+      const categoryFilter = document.getElementById('categoryFilter').value;
+      const groupFilter = document.getElementById('groupFilter').value;
+      const statusFilter = document.getElementById('statusFilter').value;
+      const search = document.getElementById('searchContacts').value.toLowerCase();
+
+      let filtered = contacts.filter(contact => {
+        const matchesCategory = !categoryFilter || contact.category === categoryFilter;
+        const matchesGroup = !groupFilter || contact.groups.includes(groupFilter);
+        const matchesStatus = !statusFilter || contact.status === statusFilter;
+        const matchesSearch = !search || 
+          contact.first_name.toLowerCase().includes(search) ||
+          contact.last_name.toLowerCase().includes(search) ||
+          contact.phone.includes(search) ||
+          (contact.email && contact.email.toLowerCase().includes(search));
+
+        return matchesCategory && matchesGroup && matchesStatus && matchesSearch;
+      });
+
+      currentPage = 1;
+      renderContacts(filtered);
+    }
+
+    // Initialize when page loads
+    document.addEventListener('DOMContentLoaded', initializeContacts);
+  </script>
+</body>
+</html>
