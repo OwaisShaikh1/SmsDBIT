@@ -19,6 +19,9 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(','
 
 # Application definition
 INSTALLED_APPS = [
+
+    # Local apps
+    'sms',
     # Django
     'django.contrib.admin',
     'django.contrib.auth',
@@ -32,8 +35,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'corsheaders',
 
-    # Local apps
-    'sms',
+    
 ]
 
 MIDDLEWARE = [
@@ -55,9 +57,7 @@ TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [
-            BASE_DIR / 'frontend' / 'templates',
-            BASE_DIR.parent / 'frontend' / 'templates',
-            BASE_DIR / 'templates',  # fallback general templates dir
+            BASE_DIR / 'frontend' / 'templates'
         ],
         'APP_DIRS': True,
         'OPTIONS': {
@@ -77,11 +77,18 @@ WSGI_APPLICATION = 'sms_portal.wsgi.application'
 # Database (default: sqlite for dev)
 DATABASES = {
     'default': {
-        'ENGINE': config('DB_ENGINE', default='django.db.backends.sqlite3'),
-        'NAME': config('DB_NAME', default=BASE_DIR / 'db.sqlite3'),
-        # If you use Postgres in env, you can override DB_ENGINE, DB_NAME, DB_USER, DB_PASS, DB_HOST, DB_PORT
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'sms_portal',
+        'USER': 'smsuser',
+        'PASSWORD': 'smspass123',
+        'HOST': 'localhost',
+        'PORT': '3306',
+        'OPTIONS': {
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+        },
     }
 }
+
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -118,6 +125,7 @@ AUTH_USER_MODEL = 'sms.User'
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication', 
     ),
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
@@ -166,6 +174,11 @@ MYSMSMANTRA_CONFIG = {
     'CLIENT_ID': config('MYSMSMANTRA_CLIENT_ID', default=''),
     'SENDER_ID': config('MYSMSMANTRA_SENDER_ID', default=''),
 }
+
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/dashboard/'
+LOGOUT_REDIRECT_URL = '/login/'
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 
 # Celery (optional) - set broker in env when using Celery
 CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/0')

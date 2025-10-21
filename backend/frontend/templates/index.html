@@ -26,9 +26,7 @@
       margin-bottom: 1rem;
     }
 
-    h4 {
-      font-weight: 500;
-    }
+    h4 { font-weight: 500; }
   </style>
 </head>
 <body>
@@ -40,22 +38,31 @@
   </div>
 
   <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const isAuthenticated = localStorage.getItem("isLoggedIn") === "true";
-      const role = localStorage.getItem("role");
+    document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        // ✅ Server-side check instead of localStorage
+        const res = await fetch("/api/auth/profile/", {
+          method: "GET",
+          credentials: "include"  // include cookies for Django session
+        });
 
-      if (isAuthenticated && role) {
-        // Redirect based on role
-        if (role === "admin") {
-          window.location.href = "/dashboard/";
-        } else if (role === "teacher") {
-          window.location.href = "/send/";
+        if (!res.ok) throw new Error("Not logged in");
+
+        const data = await res.json();
+
+        if (data && data.role) {
+          if (data.role === "admin") {
+            window.location.href = "/dashboard/";
+          } else if (data.role === "teacher") {
+            window.location.href = "/send/";
+          } else {
+            window.location.href = "/dashboard/";
+          }
         } else {
-          // Unknown role - fallback to login
           window.location.href = "/login/";
         }
-      } else {
-        // Not logged in - go to login/signup
+      } catch (err) {
+        console.warn("Session not active:", err);
         window.location.href = "/login/";
       }
     });

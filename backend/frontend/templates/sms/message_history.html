@@ -12,46 +12,54 @@
   <style>
     body { background-color: #f8f9fa; min-height: 100vh; }
     .sidebar a.active { background-color: #3b82f6 !important; }
-    .header { background-color: white; padding:15px 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .card { border:none; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.05); }
+    .header {
+      background-color: white;
+      padding: 15px 25px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .card {
+      border: none;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .small-muted { font-size: .85rem; color: #6b7280; }
     .table th, .table td { vertical-align: middle; }
-    .status-badge { font-size: 0.8rem; }
     .message-row:hover { background-color: #f8f9fa; cursor: pointer; }
-    .delivery-status { font-size: 0.75rem; }
-    .message-content { max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .timeline-item { border-left: 2px solid #e9ecef; padding-left: 1rem; margin-bottom: 1rem; }
-    .timeline-item.success { border-left-color: #198754; }
-    .timeline-item.failed { border-left-color: #dc3545; }
-    .timeline-item.pending { border-left-color: #ffc107; }
   </style>
 </head>
 <body>
-  <script>window.API_BASE = '{{ API_BASE }}';</script>
   <div class="container-fluid">
     <div class="row">
       <!-- Sidebar -->
       <div class="col-md-2 p-0" id="sidebarContainer">
-        <noscript>{% include 'includes/sidebar.html' with role=user_role %}</noscript>
-        <div id="sidebarLoader" style="height:100vh;background:#1e3a8a;color:white;display:flex;align-items:center;justify-content:center;">
+        <noscript>
+          {% include 'includes/sidebar.html' with role=request.user.role %}
+        </noscript>
+        <div id="sidebarLoader"
+          style="height:100vh;background:#1e3a8a;color:white;display:flex;align-items:center;justify-content:center;">
           <div>Loading navigation...</div>
         </div>
       </div>
 
       <!-- Main content -->
       <div class="col-md-10">
+        <!-- Header -->
         <div class="header d-flex justify-content-between align-items-center">
           <div>
             <h4 class="mb-0">Message History</h4>
-            <div style="font-size: .85rem; color: #6b7280;">Track your sent messages and delivery status</div>
+            <div class="small-muted">
+              Welcome, {{ request.user.username }} • <strong>{{ request.user.role|capfirst }}</strong>
+            </div>
           </div>
           <div class="text-end">
-            <div style="font-size: .85rem; color: #6b7280;">Signed in as</div>
-            <div><strong>{{ user.email }}</strong></div>
+            <div class="small-muted">Signed in as</div>
+            <div><strong>{{ request.user.email }}</strong></div>
           </div>
         </div>
 
+        <!-- Main Body -->
         <div class="container mt-4">
-          <!-- Stats Cards -->
+          <!-- KPI Cards -->
           <div class="row g-3 mb-4">
             <div class="col-md-3">
               <div class="card text-center p-3">
@@ -79,718 +87,82 @@
             </div>
           </div>
 
-          <!-- Filter and View Options -->
-          <div class="card mb-4">
-            <div class="card-header bg-white">
-              <div class="d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Message History</h5>
-                <div class="btn-group" role="group">
-                  <input type="radio" class="btn-check" name="viewType" id="table-view" value="table" checked>
-                  <label class="btn btn-outline-primary" for="table-view">Table View</label>
-                  
-                  <input type="radio" class="btn-check" name="viewType" id="timeline-view" value="timeline">
-                  <label class="btn btn-outline-primary" for="timeline-view">Timeline View</label>
-                </div>
-              </div>
+          <!-- History Table -->
+          <div class="card mb-5">
+            <div class="card-header bg-white fw-bold">
+              Message History
             </div>
-            <div class="card-body">
-              <!-- Filters -->
-              <div class="row g-3 mb-3">
-                <div class="col-md-3">
-                  <input type="text" id="searchInput" class="form-control" placeholder="Search messages..." oninput="filterMessages()">
-                </div>
-                <div class="col-md-2">
-                  <select id="statusFilter" class="form-select" onchange="filterMessages()">
-                    <option value="">All Status</option>
-                    <option value="delivered">Delivered</option>
-                    <option value="failed">Failed</option>
-                    <option value="pending">Pending</option>
-                    <option value="scheduled">Scheduled</option>
-                  </select>
-                </div>
-                <div class="col-md-2">
-                  <select id="typeFilter" class="form-select" onchange="filterMessages()">
-                    <option value="">All Types</option>
-                    <option value="template">Template</option>
-                    <option value="custom">Custom</option>
-                    <option value="quick">Quick</option>
-                  </select>
-                </div>
-                <div class="col-md-2">
-                  <input type="date" id="dateFilter" class="form-control" onchange="filterMessages()">
-                </div>
-                <div class="col-md-2">
-                  <select id="groupFilter" class="form-select" onchange="filterMessages()">
-                    <option value="">All Groups</option>
-                    <!-- Groups will be populated dynamically -->
-                  </select>
-                </div>
-                <div class="col-md-1">
-                  <button class="btn btn-outline-secondary w-100" onclick="resetFilters()" title="Reset Filters">
-                    <i class="fas fa-undo"></i>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Export Options -->
-              <div class="d-flex justify-content-between align-items-center mb-3">
-                <div>
-                  <span class="text-muted">Showing <span id="showingCount">0</span> of <span id="totalCount">0</span> messages</span>
-                </div>
-                <div>
-                  <button class="btn btn-sm btn-outline-primary me-2" onclick="refreshMessages()">
-                    <i class="fas fa-refresh me-1"></i>Refresh
-                  </button>
-                  <button class="btn btn-sm btn-outline-success" onclick="exportMessages()">
-                    <i class="fas fa-download me-1"></i>Export
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Table View -->
-          <div id="tableView" class="card">
-            <div class="card-body">
+            <div class="card-body p-0">
               <div class="table-responsive">
-                <table class="table table-hover align-middle">
+                <table class="table table-hover align-middle mb-0">
                   <thead class="table-light">
                     <tr>
-                      <th>Date & Time</th>
+                      <th>Date</th>
                       <th>Message</th>
                       <th>Recipients</th>
                       <th>Status</th>
                       <th>Delivery Rate</th>
                       <th>Cost</th>
-                      <th>Actions</th>
                     </tr>
                   </thead>
-                  <tbody id="historyTableBody">
-                    <!-- Messages will be loaded here -->
+                  <tbody>
+                    {% if messages %}
+                      {% for msg in messages %}
+                        <tr>
+                          <td>{{ msg.sent_at|default:msg.created_at|date:"d M Y, H:i" }}</td>
+                          <td style="max-width: 420px;">{{ msg.message_text|truncatechars:80 }}</td>
+                          <td>{{ msg.total_recipients }}</td>
+                          <td>
+                            {% if msg.status == 'delivered' %}
+                              <span class="badge bg-success">Delivered</span>
+                            {% elif msg.status == 'failed' %}
+                              <span class="badge bg-danger">Failed</span>
+                            {% elif msg.status == 'sent' %}
+                              <span class="badge bg-primary">Sent</span>
+                            {% else %}
+                              <span class="badge bg-secondary">{{ msg.status|capfirst }}</span>
+                            {% endif %}
+                          </td>
+                          <td>
+                            {% if msg.total_recipients > 0 %}
+                              {{ msg.successful_deliveries|floatformat:1 }} /
+                              {{ msg.total_recipients }} 
+                              ({{ msg.successful_deliveries|divisibleby:msg.total_recipients|yesno:"100%,0%" }})
+                            {% else %}
+                              -
+                            {% endif %}
+                          </td>
+                          <td>₹{{ msg.api_response.cost|default:"0.00" }}</td>
+                        </tr>
+                      {% endfor %}
+                    {% else %}
+                      <tr><td colspan="6" class="text-muted text-center py-4">No messages found.</td></tr>
+                    {% endif %}
                   </tbody>
                 </table>
               </div>
-              
-              <!-- Pagination -->
-              <nav class="mt-3">
-                <ul class="pagination justify-content-center" id="pagination">
-                  <!-- Pagination will be generated here -->
-                </ul>
-              </nav>
             </div>
           </div>
 
-          <!-- Timeline View -->
-          <div id="timelineView" class="card" style="display: none;">
-            <div class="card-body">
-              <div id="timelineContainer">
-                <!-- Timeline items will be loaded here -->
-              </div>
-            </div>
+          <div class="text-center">
+            <a href="/send" class="btn btn-primary">Send New Message</a>
+            <a href="/dashboard" class="btn btn-outline-secondary ms-2">Back to Dashboard</a>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Message Preview Modal -->
-  <div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="previewModalLabel">Message Details</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body" id="modalContent"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Bootstrap JS -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
+  <!-- Sidebar Load Script -->
   <script>
-    // Initialize page
-    document.addEventListener('DOMContentLoaded', function() {
-      loadSidebar();
-      initializePage();
-      loadMessages();
-    });
-
-    // Sample enhanced message data
-    const messageData = [
-      {
-        id: 1,
-        title: "Semester Exam Schedule Released",
-        message: "Dear Students, The semester examination schedule has been released. Please check your respective timetables on the college portal...",
-        type: "template",
-        date: "2025-01-14",
-        time: "10:30 AM",
-        datetime: "2025-01-14 10:30",
-        sender: "Admin Office",
-        groups: ["B.E. 1st Year", "B.E. 2nd Year"],
-        totalRecipients: 150,
-        delivered: 147,
-        failed: 3,
-        pending: 0,
-        status: "delivered",
-        cost: 15.00,
-        templateId: "EXAM_SCHEDULE",
-        scheduledFor: null,
-        deliveryReport: {
-          delivered: 147,
-          failed: 3,
-          pending: 0
-        }
-      },
-      {
-        id: 2,
-        title: "Library Book Return Notice",
-        message: "This is to remind you that your borrowed books are due for return. Please return them by the due date to avoid penalty charges.",
-        type: "custom",
-        date: "2025-01-13",
-        time: "02:15 PM",
-        datetime: "2025-01-13 14:15",
-        sender: "Library Department",
-        groups: ["All Students"],
-        totalRecipients: 300,
-        delivered: 285,
-        failed: 15,
-        pending: 0,
-        status: "delivered",
-        cost: 30.00,
-        templateId: null,
-        scheduledFor: null,
-        deliveryReport: {
-          delivered: 285,
-          failed: 15,
-          pending: 0
-        }
-      },
-      {
-        id: 3,
-        title: "Holiday Notification - Republic Day",
-        message: "College will remain closed on 26th January 2025 on account of Republic Day. Regular classes will resume on 27th January.",
-        type: "template",
-        date: "2025-01-12",
-        time: "09:45 AM",
-        datetime: "2025-01-12 09:45",
-        sender: "Academic Office",
-        groups: ["Faculty", "Students"],
-        totalRecipients: 275,
-        delivered: 275,
-        failed: 0,
-        pending: 0,
-        status: "delivered",
-        cost: 27.50,
-        templateId: "HOLIDAY_NOTICE",
-        scheduledFor: null,
-        deliveryReport: {
-          delivered: 275,
-          failed: 0,
-          pending: 0
-        }
-      },
-      {
-        id: 4,
-        title: "Assignment Submission Reminder",
-        message: "Reminder: Submit your Data Structures assignment by tomorrow 5 PM. Late submissions will not be accepted.",
-        type: "quick",
-        date: "2025-01-11",
-        time: "11:20 AM",
-        datetime: "2025-01-11 11:20",
-        sender: "Prof. Sharma",
-        groups: ["B.E. 3rd Year - Computer Science"],
-        totalRecipients: 80,
-        delivered: 78,
-        failed: 2,
-        pending: 0,
-        status: "delivered",
-        cost: 8.00,
-        templateId: null,
-        scheduledFor: null,
-        deliveryReport: {
-          delivered: 78,
-          failed: 2,
-          pending: 0
-        }
-      },
-      {
-        id: 5,
-        title: "Parent-Teacher Meeting",
-        message: "You are cordially invited to attend the Parent-Teacher meeting scheduled for this Saturday. Venue: College Auditorium, Time: 10 AM onwards.",
-        type: "template",
-        date: "2025-01-15",
-        time: "08:00 AM",
-        datetime: "2025-01-15 08:00",
-        sender: "Academic Coordinator",
-        groups: ["Parents - All Years"],
-        totalRecipients: 200,
-        delivered: 0,
-        failed: 0,
-        pending: 200,
-        status: "scheduled",
-        cost: 20.00,
-        templateId: "MEETING_INVITE",
-        scheduledFor: "2025-01-15 08:00",
-        deliveryReport: {
-          delivered: 0,
-          failed: 0,
-          pending: 200
-        }
-      }
-    ];
-
-    let filteredMessages = [...messageData];
-    let currentPage = 1;
-    const messagesPerPage = 10;
-
-    function initializePage() {
-      // Initialize view type handlers
-      document.querySelectorAll('input[name="viewType"]').forEach(radio => {
-        radio.addEventListener('change', toggleView);
+    const sidebarContainer = document.getElementById('sidebarContainer');
+    fetch('/sidebar/')
+      .then(resp => resp.text())
+      .then(html => { sidebarContainer.innerHTML = html; })
+      .catch(err => {
+        console.error('Sidebar load failed:', err);
+        sidebarContainer.innerHTML = "<div class='p-3 text-white bg-danger'>Sidebar failed to load.</div>";
       });
-
-      // Load groups for filter
-      loadGroupFilter();
-
-      // Update stats
-      updateStats();
-    }
-
-    function loadGroupFilter() {
-      const groupFilter = document.getElementById('groupFilter');
-      const allGroups = [...new Set(messageData.flatMap(msg => msg.groups))];
-      
-      allGroups.forEach(group => {
-        const option = document.createElement('option');
-        option.value = group;
-        option.textContent = group;
-        groupFilter.appendChild(option);
-      });
-    }
-
-    function updateStats() {
-      const totalSent = messageData.reduce((sum, msg) => sum + msg.totalRecipients, 0);
-      const totalDelivered = messageData.reduce((sum, msg) => sum + msg.delivered, 0);
-      const totalFailed = messageData.reduce((sum, msg) => sum + msg.failed, 0);
-      const successRate = totalSent > 0 ? ((totalDelivered / totalSent) * 100).toFixed(1) : 0;
-
-      document.getElementById('totalSent').textContent = totalSent;
-      document.getElementById('totalDelivered').textContent = totalDelivered;
-      document.getElementById('totalFailed').textContent = totalFailed;
-      document.getElementById('successRate').textContent = successRate + '%';
-    }
-
-    function loadMessages() {
-      const startIndex = (currentPage - 1) * messagesPerPage;
-      const endIndex = startIndex + messagesPerPage;
-      const pageMessages = filteredMessages.slice(startIndex, endIndex);
-
-      const tbody = document.getElementById('historyTableBody');
-      tbody.innerHTML = '';
-
-      if (pageMessages.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="7" class="text-center py-4 text-muted">
-              <i class="fas fa-inbox fa-2x mb-2"></i>
-              <div>No messages found matching your criteria</div>
-            </td>
-          </tr>
-        `;
-        return;
-      }
-
-      pageMessages.forEach(message => {
-        const deliveryRate = message.totalRecipients > 0 
-          ? ((message.delivered / message.totalRecipients) * 100).toFixed(1)
-          : 0;
-
-        const statusBadge = getStatusBadge(message.status);
-        const typeBadge = getTypeBadge(message.type);
-
-        const row = `
-          <tr>
-            <td>
-              <div class="fw-bold text-primary">${formatDate(message.date)}</div>
-              <div class="text-muted small">${message.time}</div>
-            </td>
-            <td>
-              <div class="d-flex align-items-start">
-                <div>
-                  <div class="fw-bold mb-1">${message.title}</div>
-                  <div class="text-muted small mb-1">${truncateText(message.message, 60)}</div>
-                  <div>${typeBadge}</div>
-                </div>
-              </div>
-            </td>
-            <td>
-              <div class="text-muted small mb-1">Groups: ${message.groups.length}</div>
-              <div class="fw-bold">${message.totalRecipients} contacts</div>
-              <div class="text-muted small">by ${message.sender}</div>
-            </td>
-            <td class="text-center">
-              ${statusBadge}
-              ${message.scheduledFor ? `<div class="text-muted small mt-1">Scheduled</div>` : ''}
-            </td>
-            <td class="text-center">
-              <div class="fw-bold ${deliveryRate >= 95 ? 'text-success' : deliveryRate >= 80 ? 'text-warning' : 'text-danger'}">
-                ${deliveryRate}%
-              </div>
-              <div class="text-muted small">
-                <span class="text-success">${message.delivered}</span> / 
-                <span class="text-danger">${message.failed}</span>
-                ${message.pending > 0 ? ` / <span class="text-warning">${message.pending}</span>` : ''}
-              </div>
-            </td>
-            <td class="text-center">
-              <div class="fw-bold">₹${message.cost.toFixed(2)}</div>
-            </td>
-            <td>
-              <div class="btn-group" role="group">
-                <button class="btn btn-sm btn-outline-info" onclick="viewMessageDetails(${message.id})" title="View Details">
-                  <i class="fas fa-eye"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-primary" onclick="viewDeliveryReport(${message.id})" title="Delivery Report">
-                  <i class="fas fa-chart-line"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-success" onclick="resendMessage(${message.id})" title="Resend">
-                  <i class="fas fa-redo"></i>
-                </button>
-              </div>
-            </td>
-          </tr>
-        `;
-        tbody.insertAdjacentHTML('beforeend', row);
-      });
-
-      updatePagination();
-      updateShowingCount();
-    }
-
-    function loadTimelineView() {
-      const container = document.getElementById('timelineContainer');
-      container.innerHTML = '';
-
-      filteredMessages.forEach((message, index) => {
-        const statusIcon = getStatusIcon(message.status);
-        const statusColor = getStatusColor(message.status);
-
-        const timelineItem = `
-          <div class="timeline-item mb-4">
-            <div class="d-flex">
-              <div class="timeline-marker me-3">
-                <div class="rounded-circle d-flex align-items-center justify-content-center" 
-                     style="width: 40px; height: 40px; background-color: ${statusColor};">
-                  <i class="fas ${statusIcon} text-white"></i>
-                </div>
-              </div>
-              <div class="timeline-content flex-grow-1">
-                <div class="card">
-                  <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                      <h6 class="card-title mb-0">${message.title}</h6>
-                      <span class="text-muted small">${message.date} ${message.time}</span>
-                    </div>
-                    <p class="card-text text-muted small mb-2">${message.message}</p>
-                    <div class="row g-2 small">
-                      <div class="col-md-3">
-                        <strong>Recipients:</strong> ${message.totalRecipients}
-                      </div>
-                      <div class="col-md-3">
-                        <strong>Delivered:</strong> <span class="text-success">${message.delivered}</span>
-                      </div>
-                      <div class="col-md-3">
-                        <strong>Failed:</strong> <span class="text-danger">${message.failed}</span>
-                      </div>
-                      <div class="col-md-3">
-                        <strong>Cost:</strong> ₹${message.cost.toFixed(2)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        `;
-        container.insertAdjacentHTML('beforeend', timelineItem);
-      });
-    }
-
-    function filterMessages() {
-      const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-      const statusFilter = document.getElementById('statusFilter').value;
-      const typeFilter = document.getElementById('typeFilter').value;
-      const dateFilter = document.getElementById('dateFilter').value;
-      const groupFilter = document.getElementById('groupFilter').value;
-
-      filteredMessages = messageData.filter(message => {
-        const matchesSearch = !searchTerm || 
-          message.title.toLowerCase().includes(searchTerm) ||
-          message.message.toLowerCase().includes(searchTerm) ||
-          message.sender.toLowerCase().includes(searchTerm);
-
-        const matchesStatus = !statusFilter || message.status === statusFilter;
-        const matchesType = !typeFilter || message.type === typeFilter;
-        const matchesDate = !dateFilter || message.date === dateFilter;
-        const matchesGroup = !groupFilter || message.groups.includes(groupFilter);
-
-        return matchesSearch && matchesStatus && matchesType && matchesDate && matchesGroup;
-      });
-
-      currentPage = 1;
-      
-      if (document.getElementById('table-view').checked) {
-        loadMessages();
-      } else {
-        loadTimelineView();
-      }
-    }
-
-    function resetFilters() {
-      document.getElementById('searchInput').value = '';
-      document.getElementById('statusFilter').value = '';
-      document.getElementById('typeFilter').value = '';
-      document.getElementById('dateFilter').value = '';
-      document.getElementById('groupFilter').value = '';
-      
-      filteredMessages = [...messageData];
-      currentPage = 1;
-      
-      if (document.getElementById('table-view').checked) {
-        loadMessages();
-      } else {
-        loadTimelineView();
-      }
-    }
-
-    function toggleView() {
-      const tableView = document.getElementById('tableView');
-      const timelineView = document.getElementById('timelineView');
-      
-      if (document.getElementById('table-view').checked) {
-        tableView.style.display = 'block';
-        timelineView.style.display = 'none';
-        loadMessages();
-      } else {
-        tableView.style.display = 'none';
-        timelineView.style.display = 'block';
-        loadTimelineView();
-      }
-    }
-
-    function updatePagination() {
-      const totalPages = Math.ceil(filteredMessages.length / messagesPerPage);
-      const pagination = document.getElementById('pagination');
-      pagination.innerHTML = '';
-
-      if (totalPages <= 1) return;
-
-      // Previous button
-      pagination.innerHTML += `
-        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
-          <button class="page-link" onclick="changePage(${currentPage - 1})">Previous</button>
-        </li>
-      `;
-
-      // Page numbers
-      for (let i = 1; i <= totalPages; i++) {
-        if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
-          pagination.innerHTML += `
-            <li class="page-item ${i === currentPage ? 'active' : ''}">
-              <button class="page-link" onclick="changePage(${i})">${i}</button>
-            </li>
-          `;
-        } else if (i === currentPage - 3 || i === currentPage + 3) {
-          pagination.innerHTML += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
-        }
-      }
-
-      // Next button
-      pagination.innerHTML += `
-        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
-          <button class="page-link" onclick="changePage(${currentPage + 1})">Next</button>
-        </li>
-      `;
-    }
-
-    function changePage(page) {
-      const totalPages = Math.ceil(filteredMessages.length / messagesPerPage);
-      if (page >= 1 && page <= totalPages) {
-        currentPage = page;
-        loadMessages();
-      }
-    }
-
-    function updateShowingCount() {
-      const startIndex = (currentPage - 1) * messagesPerPage + 1;
-      const endIndex = Math.min(currentPage * messagesPerPage, filteredMessages.length);
-      
-      document.getElementById('showingCount').textContent = filteredMessages.length > 0 
-        ? `${startIndex}-${endIndex}` 
-        : '0';
-      document.getElementById('totalCount').textContent = filteredMessages.length;
-    }
-
-    // Action functions
-    function viewMessageDetails(messageId) {
-      const message = messageData.find(m => m.id === messageId);
-      if (!message) return;
-
-      // Create modal for message details
-      const modal = `
-        <div class="modal fade" id="messageDetailModal" tabindex="-1">
-          <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title">Message Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-              </div>
-              <div class="modal-body">
-                <div class="row g-3">
-                  <div class="col-12">
-                    <h6>Message Information</h6>
-                    <table class="table table-borderless">
-                      <tr><td class="fw-bold">Title:</td><td>${message.title}</td></tr>
-                      <tr><td class="fw-bold">Type:</td><td>${getTypeBadge(message.type)}</td></tr>
-                      <tr><td class="fw-bold">Sent By:</td><td>${message.sender}</td></tr>
-                      <tr><td class="fw-bold">Date & Time:</td><td>${message.date} ${message.time}</td></tr>
-                      ${message.scheduledFor ? `<tr><td class="fw-bold">Scheduled For:</td><td>${message.scheduledFor}</td></tr>` : ''}
-                    </table>
-                  </div>
-                  <div class="col-12">
-                    <h6>Message Content</h6>
-                    <div class="card bg-light p-3">
-                      <pre class="mb-0" style="white-space: pre-wrap;">${message.message}</pre>
-                    </div>
-                  </div>
-                  <div class="col-md-6">
-                    <h6>Recipients</h6>
-                    <div>Total: <strong>${message.totalRecipients}</strong></div>
-                    <div>Groups: ${message.groups.join(', ')}</div>
-                  </div>
-                  <div class="col-md-6">
-                    <h6>Delivery Status</h6>
-                    <div class="text-success">Delivered: ${message.delivered}</div>
-                    <div class="text-danger">Failed: ${message.failed}</div>
-                    ${message.pending > 0 ? `<div class="text-warning">Pending: ${message.pending}</div>` : ''}
-                  </div>
-                  <div class="col-12">
-                    <h6>Cost Information</h6>
-                    <div>Total Cost: <strong>₹${message.cost.toFixed(2)}</strong></div>
-                  </div>
-                </div>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-
-      // Remove existing modal and add new one
-      document.querySelectorAll('#messageDetailModal').forEach(el => el.remove());
-      document.body.insertAdjacentHTML('beforeend', modal);
-      
-      const modalInstance = new bootstrap.Modal(document.getElementById('messageDetailModal'));
-      modalInstance.show();
-    }
-
-    function viewDeliveryReport(messageId) {
-      const message = messageData.find(m => m.id === messageId);
-      if (!message) return;
-
-      // Simple delivery report for now
-      alert(`Delivery Report for "${message.title}"\n\nTotal Recipients: ${message.totalRecipients}\nDelivered: ${message.delivered}\nFailed: ${message.failed}\nPending: ${message.pending}\n\nDelivery Rate: ${((message.delivered / message.totalRecipients) * 100).toFixed(1)}%`);
-    }
-
-    function resendMessage(messageId) {
-      if (confirm('Are you sure you want to resend this message to failed recipients?')) {
-        // In real implementation, make API call here
-        alert('Message resend initiated. You will be notified once completed.');
-      }
-    }
-
-    function refreshMessages() {
-      // In real implementation, fetch fresh data from API
-      loadMessages();
-      updateStats();
-    }
-
-    function exportMessages() {
-      // Simple CSV export
-      const csvContent = "data:text/csv;charset=utf-8," 
-        + "Date,Title,Sender,Recipients,Delivered,Failed,Status,Cost\n"
-        + filteredMessages.map(msg => 
-            `${msg.date},${msg.title},${msg.sender},${msg.totalRecipients},${msg.delivered},${msg.failed},${msg.status},${msg.cost}`
-          ).join("\n");
-      
-      const link = document.createElement("a");
-      link.setAttribute("href", encodeURI(csvContent));
-      link.setAttribute("download", "message_history.csv");
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-
-    // Utility functions
-    function getStatusBadge(status) {
-      const badges = {
-        'delivered': '<span class="badge bg-success">Delivered</span>',
-        'failed': '<span class="badge bg-danger">Failed</span>',
-        'pending': '<span class="badge bg-warning">Pending</span>',
-        'scheduled': '<span class="badge bg-info">Scheduled</span>'
-      };
-      return badges[status] || '<span class="badge bg-secondary">Unknown</span>';
-    }
-
-    function getTypeBadge(type) {
-      const badges = {
-        'template': '<span class="badge bg-primary">Template</span>',
-        'custom': '<span class="badge bg-secondary">Custom</span>',
-        'quick': '<span class="badge bg-success">Quick</span>'
-      };
-      return badges[type] || '<span class="badge bg-secondary">Unknown</span>';
-    }
-
-    function getStatusIcon(status) {
-      const icons = {
-        'delivered': 'fa-check-circle',
-        'failed': 'fa-times-circle',
-        'pending': 'fa-clock',
-        'scheduled': 'fa-calendar'
-      };
-      return icons[status] || 'fa-question-circle';
-    }
-
-    function getStatusColor(status) {
-      const colors = {
-        'delivered': '#28a745',
-        'failed': '#dc3545',
-        'pending': '#ffc107',
-        'scheduled': '#17a2b8'
-      };
-      return colors[status] || '#6c757d';
-    }
-
-    function formatDate(dateStr) {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric', 
-        year: 'numeric' 
-      });
-    }
-
-    function truncateText(text, length) {
-      return text.length > length ? text.substring(0, length) + '...' : text;
-    }
   </script>
-
-  <!-- Global Sidebar Loader -->
-  <script src="/static/js/components/sidebar.js"></script>
-  <script src="/static/js/common/common.js"></script>
 </body>
 </html>

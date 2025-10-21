@@ -6,6 +6,24 @@ from django.conf import settings
 from django.utils import timezone
 from django.http import HttpResponseNotFound
 from .auth_utils import AuthMixin, get_user_from_request
+import json
+from datetime import date, datetime
+from calendar import monthrange
+
+from django.views.generic import TemplateView
+from django.db.models import Sum, Count, Q
+from django.db.models.functions import TruncMonth
+from django.utils import timezone
+from django.conf import settings
+from django.views import View
+
+from sms.models import (
+    SMSUsageStats,
+    SMSMessage,
+    Template,
+    Group,
+    SenderID,
+)
 
 
 def _base_context(request):
@@ -64,49 +82,118 @@ class FrontendTemplateView(AuthMixin, TemplateView):
 # Page views
 # -------------------------
 
-class DashboardView(FrontendTemplateView):
-    template_name = 'dashboard/dashboard.html'
-    require_auth = True  # Dashboard requires authentication
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        
-        # Import dashboard data builder from SMS app
-        try:
-            from sms.views import build_dashboard_data
-            from sms.models import Template
-            
-            user = self.request.user
-            stats = build_dashboard_data(user)
-            
-            context['stats'] = stats
-            context['recent_messages'] = stats.get('recent_messages', [])
-            
-            if getattr(user, 'role', None) == 'admin':
-                context['pending_templates'] = Template.objects.filter(status='pending').count()
-            else:
-                context['templates_count'] = stats.get('templates_count', 0)
-                context['groups_count'] = stats.get('groups_count', 0)
-                
-        except Exception as e:
-            # Fallback with empty stats if there's an error
-            logger = __import__('logging').getLogger(__name__)
-            logger.error(f"Error building dashboard data: {e}")
-            context['stats'] = {
-                'total_sent': 0,
-                'total_delivered': 0,
-                'total_failed': 0,
-                'success_rate': 0.0,
-                'remaining_credits': 0,
-                'monthly_stats': {'months': [], 'sent': [], 'failed': []}
-            }
-            context['recent_messages'] = []
-            context['templates_count'] = 0
-            context['groups_count'] = 0
-            context['pending_templates'] = 0
-            
-        return context
+# sms/views.py
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+from django.db.models import Sum, Count, Q
+from datetime import datetime, timedelta
+from sms.models import SMSMessage, SMSUsageStats, Template, Group, User
 
+from django.contrib.auth.decorators import login_required
+from django.db.models import Sum, Count
+from django.shortcuts import render
+from sms.models import SMSMessage, SMSUsageStats, Template, Group
+
+
+@login_required(login_url='/login/')
+def DashboardView(request):
+    user = request.user
+
+    # --------------- Admin Stats ---------------
+    if user.role == 'admin':
+        all_messages = SMSMessage.objects.all()
+        all_stats = SMSUsageStats.objects.aggregate(
+            total_sent=Sum('total_sent'),
+            total_delivered=Sum('total_delivered'),
+            total_failed=Sum('total_failed'),
+            total_cost=Sum('total_cost'),
+            remaining_credits=Sum('remaining_credits')
+        )
+
+        success_rate = 0
+        if all_stats['total_sent']:
+            success_rate = round((all_stats['total_delivered'] / all_stats['total_sent']) * 100, 2)
+
+        pending_templates = Template.objects.filter(status='pending').count()
+        recent_messages = all_messages.order_by('-created_at')[:10]
+
+        stats = {
+            **all_stats,
+            'success_rate': success_rate,
+            'monthly_stats': get_monthly_stats(all_messages)
+        }
+
+    # --------------- Teacher Stats ---------------
+    else:
+        user_stats, _ = SMSUsageStats.objects.get_or_create(user=user)
+        groups_count = Group.objects.filter(teacher=user).count()
+        templates_count = Template.objects.filter(user=user, status='approved').count()
+        recent_messages = SMSMessage.objects.filter(user=user).order_by('-created_at')[:10]
+
+        stats = {
+            'total_sent': user_stats.total_sent,
+            'total_delivered': user_stats.total_delivered,
+            'total_failed': user_stats.total_failed,
+            'remaining_credits': user_stats.remaining_credits,
+            'monthly_stats': get_monthly_stats(SMSMessage.objects.filter(user=user))
+        }
+
+        pending_templates = None
+
+    # --------------- Message Context ---------------
+    recent_messages_context = [
+        {
+            #'sender_id_name': msg.sender_id.name if msg.sender_id else '-',
+            'message_text': msg.message_text,
+            'total_recipients': msg.total_recipients or len(msg.recipients.split(',')),
+            'status': msg.status,
+            'sent_at': msg.sent_at,
+            'created_at': msg.created_at,
+        }
+        for msg in recent_messages
+    ]
+
+    context = {
+        'stats': stats,
+        'pending_templates': pending_templates,
+        'groups_count': locals().get('groups_count', 0),
+        'templates_count': locals().get('templates_count', 0),
+        'recent_messages': recent_messages_context,
+        'API_BASE': '/api/',
+    }
+
+    return render(request, 'dashboard/dashboard.html', context)
+
+
+# -----------------------------------------
+# Helper: Build monthly stats for chart
+# -----------------------------------------
+def get_monthly_stats(messages):
+    from collections import defaultdict
+
+    stats = defaultdict(lambda: {'sent': 0, 'failed': 0})
+    
+    for msg in messages:
+        # Safely pick sent_at if exists, else created_at
+        date_field = msg.sent_at or msg.created_at
+        if not date_field:
+            continue  # skip if somehow both missing
+
+        year = date_field.year
+        month = date_field.month
+        label = f"{year}-{month:02d}"
+
+        stats[label]['sent'] += 1
+        if msg.status == 'failed':
+            stats[label]['failed'] += 1
+
+    # Format for chart
+    sorted_labels = sorted(stats.keys())
+    return {
+        'months': sorted_labels,
+        'sent': [stats[k]['sent'] for k in sorted_labels],
+        'failed': [stats[k]['failed'] for k in sorted_labels],
+    }
 
 class SendSMSView(FrontendTemplateView):
     template_name = 'sms/send.html'
@@ -138,19 +225,31 @@ class SenderIDsView(FrontendTemplateView):
     require_auth = True
 
 
-class UsersManagementView(FrontendTemplateView):
-    template_name = 'users/users.html'
-    require_auth = True
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+@login_required(login_url='/login/')
+def manage_users(request):
+    if request.user.role != 'admin':
+        return redirect('/dashboard/')  # Non-admins shouldn't manage users
     
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        # Only admin users should access user management
-        user = context.get('user')
-        if user and getattr(user, 'role', None) != 'admin':
-            # Redirect non-admin users to dashboard
-            from django.shortcuts import redirect
-            return redirect('/dashboard/')
-        return context
+    users = User.objects.all().order_by('-last_login')
+    stats = {
+        'total': users.count(),
+        'active': users.filter(is_active=True).count(),
+        'admins': users.filter(role='admin').count(),
+        'teachers': users.filter(role='teacher').count(),
+    }
+    
+    context = {
+        'users': users,
+        'stats': stats,
+    }
+    return render(request, 'users/users.html', context)
+
 
 
 class UserProfileView(FrontendTemplateView):
@@ -177,21 +276,55 @@ class TemplateApprovalsView(FrontendTemplateView):
             return redirect('/dashboard/')
         return context
 
+@login_required
+def activity_page(request):
+    # Placeholder data for now
+    activities = [
+        {'action': 'Sent SMS', 'details': 'Message sent to Class 10A', 'timestamp': timezone.now(), 'status': 'success'},
+        {'action': 'Created Template', 'details': 'New template "Exam Alert" added', 'timestamp': timezone.now(), 'status': 'success'},
+    ]
+    return render(request, 'dashboard/activity.html', {'activities': activities})
 
-class ActivityLogView(FrontendTemplateView):
-    template_name = 'activity/activity.html'
-    require_auth = True
 
+from django.contrib.auth import authenticate, login
+from django.contrib import messages
 
-class LoginView(FrontendTemplateView):
+class LoginView(View):
     template_name = 'auth/login.html'
 
-    def dispatch(self, request, *args, **kwargs):
-        # If user is already authenticated, redirect to dashboard
-        user, auth_method = get_user_from_request(request)
-        if user:
+    def get(self, request, *args, **kwargs):
+        # If user is already logged in → redirect to dashboard
+        if request.user.is_authenticated:
             return redirect('/dashboard/')
-        return super().dispatch(request, *args, **kwargs)
+        return render(request, self.template_name)
+
+    def post(self, request, *args, **kwargs):
+        email = request.POST.get('email') or request.POST.get('username')
+        password = request.POST.get('password')
+
+        user = authenticate(request, email=email, password=password)
+        if user is not None:
+            # Log the user in (creates Django session cookie)
+            login(request, user)
+            next_url = request.GET.get('next', '/dashboard/')
+            return redirect(next_url)
+        else:
+            messages.error(request, "Invalid email or password.")
+            return render(request, self.template_name, {'error': True})
+
+# frontend_views.py
+from django.contrib.auth import logout
+from django.shortcuts import redirect
+from django.contrib import messages
+
+def LogoutView(request):
+    if request.method == 'POST':
+        logout(request)
+        messages.success(request, "You have been logged out successfully.")
+        return redirect('/login/')
+    else:
+        # Optional: handle accidental GET requests
+        return redirect('/dashboard/')
 
 
 class RegisterView(FrontendTemplateView):

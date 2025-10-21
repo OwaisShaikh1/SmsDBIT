@@ -3,7 +3,7 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from .models import (
     User, SMSMessage, SenderID, Template, APICredentials, SMSUsageStats,
-    Group, Contact
+    Group, StudentContact
 )
 
 
@@ -105,7 +105,7 @@ class SenderIDSerializer(serializers.ModelSerializer):
 class ContactSerializer(serializers.ModelSerializer):
     """Serializer for a contact (member of a group)"""
     class Meta:
-        model = Contact
+        model = StudentContact
         fields = ('id', 'name', 'phone_number', 'meta', 'group', 'added_by', 'created_at', 'updated_at')
         read_only_fields = ('id', 'added_by', 'created_at', 'updated_at')
 

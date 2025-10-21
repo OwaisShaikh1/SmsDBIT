@@ -1,42 +1,52 @@
+{% load static %}
 <div class="sidebar">
-  <h4>SMS Portal</h4>
+  <div class="sidebar-header text-center mb-3">
+    <h4>📱 SMS Portal</h4>
+    <div class="small text-light opacity-75">
+      {{ request.user.username|capfirst }} • {{ request.user.role|capfirst }}
+    </div>
+  </div>
 
-  <!-- Main Navigation -->
-  <a href="/dashboard/">🏠 Dashboard</a>
-  <a href="/send/">✉️ Send SMS</a>
-  <a href="/history/">📜 Message History</a>
-  <a href="/templates/">🧩 Templates</a>
+  <!-- Navigation -->
+  <nav class="sidebar-nav flex-grow-1">
+    <a href="/dashboard/" class="nav-item {% if request.path == '/dashboard/' %}active{% endif %}">🏠 Dashboard</a>
+    <a href="/send/" class="nav-item {% if request.path == '/send/' %}active{% endif %}">✉️ Send SMS</a>
+    <a href="/history/" class="nav-item {% if request.path == '/history/' %}active{% endif %}">📜 Message History</a>
+    <a href="/templates/" class="nav-item {% if request.path == '/templates/' %}active{% endif %}">🧩 Templates</a>
 
-  {% if role == "admin" %}
-    <a href="/users/">👥 Manage Users</a>
-    <a href="/groups/">📚 Groups</a>
-    <a href="/reports/">📊 Reports</a>
-    <a href="/approvals/">✅ Template Approvals</a>
-  {% else %}
-    <a href="/groups/">👥 My Groups</a>
-    <a href="/contacts/">📇 Contacts</a>
-    <a href="/reports/">📈 Reports</a>
-  {% endif %}
+    {% if request.user.role == "admin" %}
+      <a href="/users/" class="nav-item {% if request.path == '/users/' %}active{% endif %}">👥 Manage Users</a>
+      <a href="/groups/" class="nav-item {% if request.path == '/groups/' %}active{% endif %}">📚 Groups</a>
+      <a href="/reports/" class="nav-item {% if request.path == '/reports/' %}active{% endif %}">📊 Reports</a>
+      <a href="/approvals/" class="nav-item {% if request.path == '/approvals/' %}active{% endif %}">✅ Template Approvals</a>
+      <a href="/activity/" class="nav-item {% if request.path == '/activity/' %}active{% endif %}">📝 Activity Log</a>
+    {% else %}
+      <a href="/groups/" class="nav-item {% if request.path == '/groups/' %}active{% endif %}">👥 My Groups</a>
+      <a href="/contacts/" class="nav-item {% if request.path == '/contacts/' %}active{% endif %}">📇 Contacts</a>
+      <a href="/reports/" class="nav-item {% if request.path == '/reports/' %}active{% endif %}">📈 Reports</a>
+    {% endif %}
+
+    <hr>
+
+    <a href="/sender-ids/" class="nav-item {% if request.path == '/sender-ids/' %}active{% endif %}">🪪 Sender IDs</a>
+    <a href="/settings/" class="nav-item {% if request.path == '/settings/' %}active{% endif %}">⚙️ Settings</a>
+  </nav>
 
   <hr>
 
-  <!-- Secondary Section -->
-  <a href="/sender-ids/">🪪 Sender IDs</a>
-  <a href="/settings/">⚙️ Settings</a>
+  <!-- Footer actions -->
+  <div class="sidebar-footer mt-auto text-center">
+    <a href="/profile/" class="nav-item d-block mb-2 {% if request.path == '/profile/' %}active{% endif %}">👤 Profile</a>
 
-  {% if role == "admin" %}
-    <a href="/activity/">📋 Activity Log</a>
-  {% endif %}
+    <!-- Safe Django logout form -->
+    <form action="/logout/" method="post" style="display:inline;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-link text-white text-decoration-none p-0">🚪 Logout</button>
+    </form>
 
-  <hr>
-
-  <!-- User Actions -->
-  <a href="/profile/">👤 Profile</a>
-  <a href="/logout/">🚪 Logout</a>
-
-  <!-- Footer -->
-  <div class="footer">
-    © {{ now|date:"Y" }} SMS Portal
+    <div class="footer mt-3 text-white-50 small">
+      © {{ now|date:"Y" }} SMS Portal
+    </div>
   </div>
 </div>
 
@@ -45,37 +55,41 @@
     height: 100vh;
     background-color: #1e3a8a;
     color: white;
-    padding-top: 20px;
     display: flex;
     flex-direction: column;
     font-family: "Inter", sans-serif;
   }
 
-  .sidebar h4 {
-    text-align: center;
-    margin-bottom: 25px;
-    font-weight: bold;
-    font-size: 1.4rem;
+  .sidebar-header h4 {
+    margin-top: 15px;
+    font-weight: 700;
     color: #fff;
   }
 
-  .sidebar a {
+  .sidebar-nav {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0 10px;
+  }
+
+  .sidebar-nav .nav-item {
     color: white;
     text-decoration: none;
     display: block;
-    padding: 10px 20px;
-    border-radius: 6px;
-    margin: 4px 10px;
-    transition: all 0.2s ease-in-out;
+    padding: 10px 15px;
+    border-radius: 8px;
+    margin: 2px 5px;
+    transition: background 0.25s;
     font-size: 0.95rem;
   }
 
-  .sidebar a:hover {
+  .sidebar-nav .nav-item:hover {
     background-color: #3b82f6;
     text-decoration: none;
   }
 
-  .sidebar a.active {
+  .sidebar-nav .nav-item.active {
     background-color: #2563eb;
   }
 
@@ -84,12 +98,19 @@
     margin: 10px 15px;
   }
 
-  .footer {
-    margin-top: auto;
-    padding: 15px 20px;
-    border-top: 1px solid rgba(255,255,255,0.2);
-    font-size: 0.85rem;
-    text-align: center;
-    opacity: 0.8;
+  .sidebar-footer {
+    padding: 10px;
+  }
+
+  .sidebar-footer button {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+
+  .sidebar-footer button:hover {
+    text-decoration: underline;
   }
 </style>

@@ -6,27 +6,22 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Send SMS | SMS Portal</title>
 
-  <!-- Bootstrap & Flatpickr -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
   <style>
-    body { background-color: #f8f9fa; min-height: 100vh; }
+    body { background-color: #f8f9fa; }
     .sidebar a.active { background-color: #3b82f6 !important; }
-    .header { background-color: white; padding:15px 25px; box-shadow:0 2px 4px rgba(0,0,0,0.05); }
-    .card { border:none; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.05); }
-    .variable-input { margin: 5px 0; }
+    .header { background-color: white; padding: 15px 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .card { border: none; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
     .char-count { font-size: 0.8rem; color: #6b7280; }
-    .char-warning { color: #f59e0b; }
-    .char-error { color: #ef4444; }
-    .recipient-chip { display: inline-block; background: #e5e7eb; padding: 0.25rem 0.5rem; margin: 0.125rem; border-radius: 12px; font-size: 0.75rem; }
-    .recipient-chip .remove { color: #dc2626; cursor: pointer; margin-left: 0.25rem; }
-    .send-options { background: #f8f9fa; border-radius: 8px; padding: 1rem; }
-    .cost-estimate { background: #fef3c7; border: 1px solid #fbbf24; border-radius: 6px; padding: 0.75rem; }
+    .preview-table th, .preview-table td { font-size: 0.9rem; vertical-align: middle; }
   </style>
 </head>
 <body>
   <script>window.API_BASE = '{{ API_BASE }}';</script>
+
   <div class="container-fluid">
     <div class="row">
       <!-- Sidebar -->
@@ -37,920 +32,266 @@
         </div>
       </div>
 
-      <!-- Main content -->
+      <!-- Main Content -->
       <div class="col-md-10">
         <div class="header d-flex justify-content-between align-items-center">
           <div>
             <h4 class="mb-0">Send SMS</h4>
-            <div style="font-size: .85rem; color: #6b7280;">Compose and send personalized messages</div>
+            <small class="text-muted">Compose and personalize messages</small>
           </div>
           <div class="text-end">
             <div style="font-size: .85rem; color: #6b7280;">Signed in as</div>
-            <div><strong>{{ user.email }}</strong></div>
+            <strong>{{ user.email }}</strong>
           </div>
         </div>
 
         <div class="container mt-4">
-          <!-- Quick Stats -->
+          <!-- Stats -->
           <div class="row g-3 mb-4">
-            <div class="col-md-3">
-              <div class="card text-center p-3">
-                <h6>Messages Today</h6>
-                <h3 class="text-primary" id="todayCount">0</h3>
-              </div>
-            </div>
-            <div class="col-md-3">
-              <div class="card text-center p-3">
-                <h6>Remaining Credits</h6>
-                <h3 class="text-success" id="remainingCredits">2,450</h3>
-              </div>
-            </div>
-            <div class="col-md-3">
-              <div class="card text-center p-3">
-                <h6>Success Rate</h6>
-                <h3 class="text-info">94.2%</h3>
-              </div>
-            </div>
-            <div class="col-md-3">
-              <div class="card text-center p-3">
-                <h6>Cost per SMS</h6>
-                <h3 class="text-warning">₹0.15</h3>
-              </div>
-            </div>
+            <div class="col-md-3"><div class="card text-center p-3"><h6>Messages Today</h6><h4 id="todayCount">0</h4></div></div>
+            <div class="col-md-3"><div class="card text-center p-3"><h6>Remaining Credits</h6><h4 id="remainingCredits">2,000</h4></div></div>
+            <div class="col-md-3"><div class="card text-center p-3"><h6>Delivery Rate</h6><h4 id="deliveryRate">95%</h4></div></div>
+            <div class="col-md-3"><div class="card text-center p-3"><h6>Cost / SMS</h6><h4>₹0.15</h4></div></div>
           </div>
 
-          <!-- SMS Composition -->
-          <div class="row">
-            <div class="col-lg-8">
-              <div class="card p-4">
-                <h5 class="mb-3">Compose Message</h5>
-
-                <form id="smsForm" onsubmit="return handleSubmit(event)">
-                  <!-- Message Type -->
-                  <div class="mb-3">
-                    <label class="form-label">Message Type</label>
-                    <div class="btn-group w-100" role="group">
-                      <input type="radio" class="btn-check" name="messageType" id="template-msg" value="template" checked>
-                      <label class="btn btn-outline-primary" for="template-msg">Template Message</label>
-                      
-                      <input type="radio" class="btn-check" name="messageType" id="custom-msg" value="custom">
-                      <label class="btn btn-outline-primary" for="custom-msg">Custom Message</label>
-                      
-                      <input type="radio" class="btn-check" name="messageType" id="quick-msg" value="quick">
-                      <label class="btn btn-outline-primary" for="quick-msg">Quick Message</label>
-                    </div>
-                  </div>
-
-                  <!-- Sender ID -->
-                  <div class="mb-3">
-                    <label for="senderId" class="form-label">Sender ID</label>
-                    <select id="senderId" class="form-select">
-                      <option value="DBITSCH">DBITSCH (School)</option>
-                      <option value="DBITADM">DBITADM (Admin)</option>
-                      <option value="DBITEDU">DBITEDU (Education)</option>
-                    </select>
-                  </div>
-
-                  <!-- Template Section -->
-                  <div id="templateSection">
-                    <div class="mb-3">
-                      <label for="template" class="form-label">Select Template</label>
-                      <select id="template" class="form-select" onchange="handleTemplateChange()">
-                        <option value="">-- Choose a Template --</option>
-                        <!-- Templates will be loaded dynamically -->
-                      </select>
-                      <small id="templateInfo" class="text-muted"></small>
-                    </div>
-                  </div>
-
-                  <!-- Custom Message Section -->
-                  <div id="customSection" style="display: none;">
-                    <div class="mb-3">
-                      <label for="customMessage" class="form-label">Your Message</label>
-                      <textarea id="customMessage" class="form-control" rows="4" placeholder="Type your message here..." oninput="updateCharCount(this)"></textarea>
-                      <div class="d-flex justify-content-between">
-                        <small class="char-count" id="charCount">0/160 characters</small>
-                        <small class="text-muted" id="smsCount">1 SMS</small>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Quick Message Section -->
-                  <div id="quickSection" style="display: none;">
-                    <div class="mb-3">
-                      <label class="form-label">Quick Messages</label>
-                      <div class="row g-2">
-                        <div class="col-md-6">
-                          <button type="button" class="btn btn-outline-secondary w-100" onclick="setQuickMessage('attendance')">
-                            📚 Attendance Alert
-                          </button>
-                        </div>
-                        <div class="col-md-6">
-                          <button type="button" class="btn btn-outline-secondary w-100" onclick="setQuickMessage('holiday')">
-                            🏖️ Holiday Notice
-                          </button>
-                        </div>
-                        <div class="col-md-6">
-                          <button type="button" class="btn btn-outline-secondary w-100" onclick="setQuickMessage('meeting')">
-                            🤝 Meeting Reminder
-                          </button>
-                        </div>
-                        <div class="col-md-6">
-                          <button type="button" class="btn btn-outline-secondary w-100" onclick="setQuickMessage('exam')">
-                            📝 Exam Schedule
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="mb-3">
-                      <textarea id="quickMessage" class="form-control" rows="3" placeholder="Selected quick message will appear here..." oninput="updateCharCount(this)"></textarea>
-                      <div class="d-flex justify-content-between">
-                        <small class="char-count" id="quickCharCount">0/160 characters</small>
-                        <small class="text-muted" id="quickSmsCount">1 SMS</small>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Recipients Selection -->
-                  <div class="mb-3">
-                    <label class="form-label">Send To</label>
-                    <div class="btn-group w-100 mb-3" role="group">
-                      <input type="radio" class="btn-check" name="sendTo" id="send-groups" value="groups" checked>
-                      <label class="btn btn-outline-success" for="send-groups">Groups</label>
-                      
-                      <input type="radio" class="btn-check" name="sendTo" id="send-numbers" value="numbers">
-                      <label class="btn btn-outline-success" for="send-numbers">Phone Numbers</label>
-                      
-                      <input type="radio" class="btn-check" name="sendTo" id="send-contacts" value="contacts">
-                      <label class="btn btn-outline-success" for="send-contacts">From Contacts</label>
-                    </div>
-
-                    <!-- Groups Selection -->
-                    <div id="groupsSelection">
-                      <select id="groupSelect" class="form-select mb-2" onchange="updateRecipients()">
-                        <option value="">-- Select Group --</option>
-                        <!-- Groups will be loaded dynamically -->
-                      </select>
-                      <div id="selectedGroups"></div>
-                    </div>
-
-                    <!-- Phone Numbers Input -->
-                    <div id="numbersSelection" style="display: none;">
-                      <textarea id="phoneNumbers" class="form-control mb-2" rows="3" placeholder="Enter phone numbers (one per line or comma-separated)&#10;+91-9876543210&#10;9123456789&#10;+91-9988776655"></textarea>
-                      <button type="button" class="btn btn-sm btn-outline-primary" onclick="parsePhoneNumbers()">Add Numbers</button>
-                    </div>
-
-                    <!-- Contacts Selection -->
-                    <div id="contactsSelection" style="display: none;">
-                      <div class="input-group mb-2">
-                        <input type="text" class="form-control" id="contactSearch" placeholder="Search contacts...">
-                        <button class="btn btn-outline-secondary" type="button" onclick="searchContacts()">Search</button>
-                      </div>
-                      <div id="contactsList" class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
-                        <!-- Contacts will be loaded here -->
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Final Recipients Display -->
-                  <div class="mb-3">
-                    <label class="form-label">Recipients (<span id="recipientCount">0</span>)</label>
-                    <div class="border rounded p-3" style="min-height: 60px; max-height: 150px; overflow-y: auto;" id="recipientsDisplay">
-                      <span class="text-muted">No recipients selected</span>
-                    </div>
-                  </div>
-
-                  <!-- Variable Inputs (for templates) -->
-                  <div id="variablesSection" style="display: none;">
-                    <label class="form-label">Template Variables</label>
-                    <div id="variables" class="mb-3"></div>
-                  </div>
-
-                  <!-- Message Preview -->
-                  <div id="previewSection" class="mb-3" style="display: none;">
-                    <label class="form-label">Message Preview</label>
-                    <div class="border rounded p-3 bg-light" id="messagePreview"></div>
-                  </div>
-
-                  <!-- Send Options -->
-                  <div class="send-options mb-3">
-                    <h6 class="mb-3">Send Options</h6>
-                    <div class="row g-3">
-                      <div class="col-md-6">
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="sendTime" id="sendNow" value="now" checked>
-                          <label class="form-check-label" for="sendNow">
-                            Send Now
-                          </label>
-                        </div>
-                      </div>
-                      <div class="col-md-6">
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="sendTime" id="schedule" value="schedule">
-                          <label class="form-check-label" for="schedule">
-                            Schedule for Later
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-                    <div id="scheduleOptions" style="display: none;" class="mt-3">
-                      <div class="row g-3">
-                        <div class="col-md-6">
-                          <label class="form-label">Date</label>
-                          <input type="date" class="form-control" id="scheduleDate" min="">
-                        </div>
-                        <div class="col-md-6">
-                          <label class="form-label">Time</label>
-                          <input type="time" class="form-control" id="scheduleTime">
-                        </div>
-                      </div>
-                    </div>
-                    <div class="mt-3">
-                      <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="requestDeliveryReport" checked>
-                        <label class="form-check-label" for="requestDeliveryReport">
-                          Request delivery reports
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Cost Estimate -->
-                  <div class="cost-estimate mb-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                      <div>
-                        <strong>Estimated Cost:</strong>
-                        <span id="estimatedCost">₹0.00</span>
-                        <small class="text-muted">(<span id="messageCount">0</span> messages × ₹0.15)</small>
-                      </div>
-                      <div>
-                        <small class="text-muted">Balance: ₹<span id="balanceAmount">367.50</span></small>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Submit Button -->
-                  <div class="d-grid">
-                    <button type="submit" class="btn btn-primary btn-lg" id="sendButton" disabled>
-                      <i class="fas fa-paper-plane me-2"></i>Send SMS
-                    </button>
-                  </div>
-                </form>
+          <!-- SMS Form -->
+          <div class="card p-4 mb-5">
+            <form id="smsForm" onsubmit="return handleSubmit(event)">
+              <!-- Template -->
+              <div class="mb-3">
+                <label class="form-label">Select Template</label>
+                <select class="form-select" id="templateSelect" onchange="onTemplateSelect()">
+                  <option value="">-- Select a Template --</option>
+                </select>
               </div>
-            </div>
 
-            <!-- Sidebar Info -->
-            <div class="col-lg-4">
-              <!-- Recent Templates -->
-              <div class="card mb-4">
-                <div class="card-header bg-white">
-                  <h6 class="mb-0">Recent Templates</h6>
-                </div>
-                <div class="card-body">
-                  <div id="recentTemplates">
-                    <!-- Recent templates will be loaded here -->
-                  </div>
+              <!-- Group -->
+              <div class="mb-3">
+                <label class="form-label">Select Group</label>
+                <select class="form-select" id="groupSelect" onchange="loadContactsForGroup()">
+                  <option value="">-- Select Group --</option>
+                </select>
+              </div>
+
+              <!-- Dynamic Variables -->
+              <div id="variableInputs" class="row g-3 mb-4" style="display:none;"></div>
+
+              <!-- Preview Table -->
+              <div class="mb-3">
+                <h6>Preview Messages</h6>
+                <div class="table-responsive">
+                  <table class="table table-bordered preview-table" id="previewTable">
+                    <thead class="table-light">
+                      <tr>
+                        <th>#</th>
+                        <th>Student</th>
+                        <th>Phone</th>
+                        <th>Message</th>
+                      </tr>
+                    </thead>
+                    <tbody><tr><td colspan="4" class="text-center text-muted py-3">Select template and group</td></tr></tbody>
+                  </table>
                 </div>
               </div>
 
-              <!-- Quick Groups -->
-              <div class="card mb-4">
-                <div class="card-header bg-white">
-                  <h6 class="mb-0">Quick Groups</h6>
-                </div>
-                <div class="card-body">
-                  <div id="quickGroups">
-                    <!-- Quick groups will be loaded here -->
-                  </div>
-                </div>
+              <!-- Submit -->
+              <div class="text-end">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane me-2"></i>Send SMS</button>
               </div>
-
-              <!-- SMS Guidelines -->
-              <div class="card">
-                <div class="card-header bg-white">
-                  <h6 class="mb-0">SMS Guidelines</h6>
-                </div>
-                <div class="card-body">
-                  <ul class="list-unstyled mb-0 small">
-                    <li class="mb-2">• Keep messages under 160 characters</li>
-                    <li class="mb-2">• Use approved templates for compliance</li>
-                    <li class="mb-2">• Avoid promotional content</li>
-                    <li class="mb-2">• Include sender identification</li>
-                    <li class="mb-0">• Respect opt-out requests</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
+            </form>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Confirmation Modal -->
-  <div class="modal fade" id="confirmModal" tabindex="-1">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Confirm SMS Send</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <div id="confirmationDetails"></div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="btn btn-primary" onclick="confirmSend()">Send SMS</button>
-        </div>
-      </div>
-    </div>
-  </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+  <!-- Sidebar Loader -->
+  <script>
+    fetch('/sidebar/', { credentials: 'include' })
+      .then(resp => resp.text())
+      .then(html => { document.getElementById('sidebarContainer').innerHTML = html; })
+      .catch(err => console.error('Sidebar load failed:', err));
+  </script>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-  <script src="{% static 'js/common/common.js' %}"></script>
+  <!-- Main Logic -->
+
+  <meta name="csrf-token" content="{{ csrf_token }}">
 
   <script>
     let templates = [];
     let groups = [];
     let contacts = [];
-    let selectedRecipients = [];
-    let currentMessage = '';
-    let messageType = 'template';
+    let selectedTemplate = null;
+    let variableValues = {};
 
-    // Initialize the Send SMS page
-    async function initializePage() {
-      await loadTemplates();
-      await loadGroups();
-      await loadContacts();
-      loadRecentTemplates();
-      loadQuickGroups();
-      setupEventListeners();
-      updateStats();
-      
-      // Set minimum date for scheduling
-      const today = new Date().toISOString().split('T')[0];
-      document.getElementById('scheduleDate').min = today;
-    }
+    document.addEventListener("DOMContentLoaded", () => {
+      fetchTemplates();
+      fetchGroups();
+      document.getElementById("todayCount").textContent = Math.floor(Math.random() * 20 + 5);
+    });
 
-    async function loadTemplates() {
-      try {
-        const response = await window.AppAuth.authFetch(`${window.AppAuth.API_BASE}/templates/`);
-        if (response.ok) {
-          templates = await response.json();
-        }
-      } catch (error) {
-        console.error('Error loading templates:', error);
-        // Demo templates
-        templates = [
-          {
-            id: 1,
-            name: 'Attendance Alert',
-            content: 'Dear parent, your child {student_name} was absent on {date}. Please contact the school if this is unexpected.',
-            variables: ['student_name', 'date'],
-            category: 'academic',
-            type: 'student',
-            status: 'approved'
-          },
-          {
-            id: 2,
-            name: 'Fee Reminder',
-            content: 'Dear {student_name}, your fee payment of ₹{amount} is due on {due_date}. Please pay to avoid late fees.',
-            variables: ['student_name', 'amount', 'due_date'],
-            category: 'administrative',
-            type: 'student',
-            status: 'approved'
-          },
-          {
-            id: 3,
-            name: 'Meeting Notice',
-            content: 'Dear {teacher_name}, you are invited to attend the {meeting_type} on {date} at {time} in {venue}.',
-            variables: ['teacher_name', 'meeting_type', 'date', 'time', 'venue'],
-            category: 'administrative',
-            type: 'teacher',
-            status: 'approved'
-          },
-          {
-            id: 4,
-            name: 'Exam Schedule',
-            content: 'Dear {student_name}, your {subject} exam is scheduled on {date} at {time}. Venue: {venue}. Best of luck!',
-            variables: ['student_name', 'subject', 'date', 'time', 'venue'],
-            category: 'academic',
-            type: 'student',
-            status: 'approved'
-          },
-          {
-            id: 5,
-            name: 'Event Invitation',
-            content: 'Dear {student_name}, you are invited to {event_name} on {date} at {venue}. RSVP by {rsvp_date}.',
-            variables: ['student_name', 'event_name', 'date', 'venue', 'rsvp_date'],
-            category: 'event',
-            type: 'student',
-            status: 'approved'
-          }
-        ];
-      }
-      populateTemplateSelect();
-    }
-
-    async function loadGroups() {
-      try {
-        const response = await window.AppAuth.authFetch(`${window.AppAuth.API_BASE}/groups/`);
-        if (response.ok) {
-          groups = await response.json();
-        }
-      } catch (error) {
-        console.error('Error loading groups:', error);
-        // Demo groups
-        groups = [
-          { id: 1, name: 'Class 10A Students', type: 'student', member_count: 32, members: generateStudents('10A') },
-          { id: 2, name: 'Class 10B Students', type: 'student', member_count: 30, members: generateStudents('10B') },
-          { id: 3, name: 'Parents - 10A', type: 'parent', member_count: 32, members: generateParents('10A') },
-          { id: 4, name: 'Math Teachers', type: 'teacher', member_count: 5, members: generateTeachers('Math') },
-          { id: 5, name: 'All Teachers', type: 'teacher', member_count: 25, members: generateTeachers('All') }
-        ];
-      }
-      populateGroupSelect();
-    }
-
-    async function loadContacts() {
-      try {
-        const response = await window.AppAuth.authFetch(`${window.AppAuth.API_BASE}/contacts/`);
-        if (response.ok) {
-          contacts = await response.json();
-        }
-      } catch (error) {
-        console.error('Error loading contacts:', error);
-        // Demo contacts loaded from groups
-        contacts = [];
-        groups.forEach(group => {
-          contacts.push(...group.members);
-        });
+    async function fetchTemplates() {
+      const res = await fetch(`${window.API_BASE}/templates/`, { credentials: 'include' });
+      if (res.ok) {
+        templates = await res.json();
+        populateSelect("templateSelect", templates, "title");
       }
     }
 
-    function generateStudents(className) {
-      const names = ['Rahul Sharma', 'Priya Patel', 'Amit Kumar', 'Sneha Singh', 'Arjun Gupta'];
-      return names.map((name, index) => ({
-        name: name,
-        phone: `+91-98765${String(index + 43210).slice(-5)}`,
-        type: 'student',
-        class: className
-      }));
+    async function fetchGroups() {
+      const res = await fetch(`${window.API_BASE}/groups/`, { credentials: 'include' });
+      if (res.ok) {
+        groups = await res.json();
+        populateSelect("groupSelect", groups, "name");
+      }
     }
 
-    function generateParents(className) {
-      const names = ['Mr. Rajesh Sharma', 'Mrs. Meera Patel', 'Mr. Suresh Kumar', 'Mrs. Anjali Singh', 'Mr. Vikram Gupta'];
-      return names.map((name, index) => ({
-        name: name,
-        phone: `+91-99876${String(index + 54321).slice(-5)}`,
-        type: 'parent',
-        class: className
-      }));
+    async function loadContactsForGroup() {
+      const groupId = document.getElementById("groupSelect").value;
+      if (!groupId) return;
+      const res = await fetch(`${window.API_BASE}/contacts/?group=${groupId}`, { credentials: 'include' });
+      if (res.ok) {
+        contacts = await res.json();
+        renderPreview();
+      }
     }
 
-    function generateTeachers(department) {
-      const names = ['Dr. Anjali Verma', 'Prof. Rajesh Kumar', 'Ms. Priya Sharma', 'Mr. Amit Patel', 'Dr. Sunita Singh'];
-      return names.map((name, index) => ({
-        name: name,
-        phone: `+91-97654${String(index + 32109).slice(-5)}`,
-        type: 'teacher',
-        department: department
-      }));
-    }
-
-    function populateTemplateSelect() {
-      const select = document.getElementById('template');
-      select.innerHTML = '<option value="">-- Choose a Template --</option>';
-      
-      templates.filter(t => t.status === 'approved').forEach(template => {
-        const option = document.createElement('option');
-        option.value = template.id;
-        option.textContent = template.name;
-        option.dataset.type = template.type;
-        option.dataset.category = template.category;
-        select.appendChild(option);
+    function populateSelect(id, data, labelKey) {
+      const select = document.getElementById(id);
+      select.innerHTML = `<option value="">-- Select --</option>`;
+      data.forEach(item => {
+        select.insertAdjacentHTML("beforeend", `<option value="${item.id}">${item[labelKey]}</option>`);
       });
     }
 
-    function populateGroupSelect() {
-      const select = document.getElementById('groupSelect');
-      select.innerHTML = '<option value="">-- Select Group --</option>';
-      
-      groups.forEach(group => {
-        const option = document.createElement('option');
-        option.value = group.id;
-        option.textContent = `${group.name} (${group.member_count} members)`;
-        option.dataset.type = group.type;
-        select.appendChild(option);
-      });
+    // Detect variable types based on keywords
+    function detectVarType(varName) {
+      varName = varName.toLowerCase();
+      if (varName.includes("date")) return "date";
+      if (varName.includes("time")) return "time";
+      if (varName.includes("amount") || varName.includes("fee") || varName.includes("number")) return "number";
+      return "text";
     }
 
-    function setupEventListeners() {
-      // Message type change
-      document.querySelectorAll('input[name="messageType"]').forEach(radio => {
-        radio.addEventListener('change', handleMessageTypeChange);
-      });
+    function onTemplateSelect() {
+      const selectedId = document.getElementById("templateSelect").value;
+      selectedTemplate = templates.find(t => t.id == selectedId);
+      if (!selectedTemplate) return;
 
-      // Send to change
-      document.querySelectorAll('input[name="sendTo"]').forEach(radio => {
-        radio.addEventListener('change', handleSendToChange);
-      });
+      const templateText = selectedTemplate.content;
+      const matches = [...templateText.matchAll(/\{(.*?)\}/g)].map(m => m[1]);
+      const uniqueVars = [...new Set(matches.filter(v => v !== 'student_name' && v !== 'phone_number'))];
 
-      // Schedule option change
-      document.querySelectorAll('input[name="sendTime"]').forEach(radio => {
-        radio.addEventListener('change', handleScheduleChange);
-      });
-    }
-
-    function handleMessageTypeChange(event) {
-      messageType = event.target.value;
-      
-      document.getElementById('templateSection').style.display = messageType === 'template' ? 'block' : 'none';
-      document.getElementById('customSection').style.display = messageType === 'custom' ? 'block' : 'none';
-      document.getElementById('quickSection').style.display = messageType === 'quick' ? 'block' : 'none';
-      
-      updatePreview();
-    }
-
-    function handleSendToChange(event) {
-      const sendToType = event.target.value;
-      
-      document.getElementById('groupsSelection').style.display = sendToType === 'groups' ? 'block' : 'none';
-      document.getElementById('numbersSelection').style.display = sendToType === 'numbers' ? 'block' : 'none';
-      document.getElementById('contactsSelection').style.display = sendToType === 'contacts' ? 'block' : 'none';
-      
-      clearRecipients();
-    }
-
-    function handleScheduleChange(event) {
-      const isScheduled = event.target.value === 'schedule';
-      document.getElementById('scheduleOptions').style.display = isScheduled ? 'block' : 'none';
-    }
-
-    function handleTemplateChange() {
-      const templateId = document.getElementById('template').value;
-      if (!templateId) {
-        document.getElementById('templateInfo').textContent = '';
-        document.getElementById('variablesSection').style.display = 'none';
-        return;
-      }
-
-      const template = templates.find(t => t.id == templateId);
-      currentMessage = template.content;
-      
-      document.getElementById('templateInfo').innerHTML = 
-        `<i class="fas fa-info-circle text-primary"></i> ${template.category} template for ${template.type}s`;
-      
-      // Show variables section if template has variables
-      if (template.variables && template.variables.length > 0) {
-        createVariableInputs(template.variables);
-        document.getElementById('variablesSection').style.display = 'block';
-      } else {
-        document.getElementById('variablesSection').style.display = 'none';
-      }
-      
-      updatePreview();
-    }
-
-    function createVariableInputs(variables) {
-      const container = document.getElementById('variables');
-      container.innerHTML = '';
-      
-      variables.forEach(variable => {
-        if (variable === 'student_name' || variable === 'teacher_name') return; // Skip auto-filled variables
-        
-        const div = document.createElement('div');
-        div.className = 'mb-2';
-        
-        const label = document.createElement('label');
-        label.className = 'form-label';
-        label.textContent = variable.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'form-control';
-        input.placeholder = `Enter ${variable.replace(/_/g, ' ')}`;
-        input.dataset.variable = variable;
-        input.addEventListener('input', updatePreview);
-        
-        // Special handling for date fields
-        if (variable.includes('date')) {
-          flatpickr(input, {
-            dateFormat: 'd-m-Y',
-            allowInput: true,
-            onChange: updatePreview
-          });
-        }
-        
-        div.appendChild(label);
-        div.appendChild(input);
-        container.appendChild(div);
-      });
-    }
-
-    function updateRecipients() {
-      const groupId = document.getElementById('groupSelect').value;
-      if (!groupId) {
-        clearRecipients();
-        return;
-      }
-
-      const group = groups.find(g => g.id == groupId);
-      if (group) {
-        selectedRecipients = group.members;
-        displayRecipients();
-        updateCostEstimate();
-      }
-    }
-
-    function parsePhoneNumbers() {
-      const numbersText = document.getElementById('phoneNumbers').value;
-      const numbers = numbersText.split(/[,\n]/).map(n => n.trim()).filter(n => n);
-      
-      selectedRecipients = numbers.map(number => ({
-        name: 'Contact',
-        phone: number,
-        type: 'manual'
-      }));
-      
-      displayRecipients();
-      updateCostEstimate();
-    }
-
-    function searchContacts() {
-      const search = document.getElementById('contactSearch').value.toLowerCase();
-      const container = document.getElementById('contactsList');
-      
-      const filteredContacts = contacts.filter(contact =>
-        contact.name.toLowerCase().includes(search) ||
-        contact.phone.includes(search)
-      );
-      
-      container.innerHTML = '';
-      filteredContacts.forEach(contact => {
-        const div = document.createElement('div');
-        div.className = 'form-check';
-        div.innerHTML = `
-          <input class="form-check-input" type="checkbox" value="${contact.phone}" id="contact_${contact.phone}">
-          <label class="form-check-label" for="contact_${contact.phone}">
-            ${contact.name} - ${contact.phone}
-          </label>
-        `;
-        div.querySelector('input').addEventListener('change', updateSelectedContacts);
-        container.appendChild(div);
-      });
-    }
-
-    function updateSelectedContacts() {
-      const checkboxes = document.querySelectorAll('#contactsList input[type="checkbox"]:checked');
-      selectedRecipients = Array.from(checkboxes).map(cb => {
-        const contact = contacts.find(c => c.phone === cb.value);
-        return contact || { name: 'Contact', phone: cb.value, type: 'contact' };
-      });
-      
-      displayRecipients();
-      updateCostEstimate();
-    }
-
-    function displayRecipients() {
-      const container = document.getElementById('recipientsDisplay');
-      const count = document.getElementById('recipientCount');
-      
-      count.textContent = selectedRecipients.length;
-      
-      if (selectedRecipients.length === 0) {
-        container.innerHTML = '<span class="text-muted">No recipients selected</span>';
-        document.getElementById('sendButton').disabled = true;
-        return;
-      }
-      
-      container.innerHTML = selectedRecipients.map(recipient => 
-        `<span class="recipient-chip">${recipient.name} (${recipient.phone}) <span class="remove" onclick="removeRecipient('${recipient.phone}')">&times;</span></span>`
-      ).join('');
-      
-      document.getElementById('sendButton').disabled = false;
-      updatePreview();
-    }
-
-    function removeRecipient(phone) {
-      selectedRecipients = selectedRecipients.filter(r => r.phone !== phone);
-      displayRecipients();
-      updateCostEstimate();
-    }
-
-    function clearRecipients() {
-      selectedRecipients = [];
-      displayRecipients();
-    }
-
-    function updateCharCount(textarea) {
-      const length = textarea.value.length;
-      const charCountId = textarea.id === 'customMessage' ? 'charCount' : 'quickCharCount';
-      const smsCountId = textarea.id === 'customMessage' ? 'smsCount' : 'quickSmsCount';
-      
-      const charCount = document.getElementById(charCountId);
-      const smsCount = document.getElementById(smsCountId);
-      
-      charCount.textContent = `${length}/160 characters`;
-      charCount.className = length > 160 ? 'char-count char-error' : length > 140 ? 'char-count char-warning' : 'char-count';
-      
-      const smsNeeded = Math.ceil(length / 160) || 1;
-      smsCount.textContent = `${smsNeeded} SMS`;
-      
-      currentMessage = textarea.value;
-      updatePreview();
-    }
-
-    function setQuickMessage(type) {
-      const messages = {
-        attendance: 'Dear parent, your child was absent today. Please contact school if unexpected.',
-        holiday: 'School will remain closed tomorrow due to holiday. Classes will resume the next day.',
-        meeting: 'Parent-teacher meeting scheduled for this Saturday at 10 AM. Your presence is required.',
-        exam: 'Reminder: Final exams begin next Monday. Please ensure students are prepared.'
-      };
-      
-      const textarea = document.getElementById('quickMessage');
-      textarea.value = messages[type] || '';
-      updateCharCount(textarea);
-    }
-
-    function updatePreview() {
-      const preview = document.getElementById('messagePreview');
-      const previewSection = document.getElementById('previewSection');
-      
-      if (!currentMessage || selectedRecipients.length === 0) {
-        previewSection.style.display = 'none';
-        return;
-      }
-      
-      let message = currentMessage;
-      
-      // Replace variables if in template mode
-      if (messageType === 'template') {
-        const variableInputs = document.querySelectorAll('#variables input');
-        variableInputs.forEach(input => {
-          const variable = input.dataset.variable;
-          const value = input.value || `{${variable}}`;
-          message = message.replace(new RegExp(`{${variable}}`, 'g'), value);
-        });
-      } else if (messageType === 'custom') {
-        message = document.getElementById('customMessage').value;
-      } else if (messageType === 'quick') {
-        message = document.getElementById('quickMessage').value;
-      }
-      
-      // Show sample with first recipient
-      const sampleRecipient = selectedRecipients[0];
-      if (sampleRecipient) {
-        let sampleMessage = message;
-        if (message.includes('{student_name}')) {
-          sampleMessage = sampleMessage.replace(/{student_name}/g, sampleRecipient.name);
-        }
-        if (message.includes('{teacher_name}')) {
-          sampleMessage = sampleMessage.replace(/{teacher_name}/g, sampleRecipient.name);
-        }
-        
-        preview.innerHTML = `<strong>Sample Message:</strong><br>"${sampleMessage}"<br><small class="text-muted">To: ${sampleRecipient.name} (${sampleRecipient.phone})</small>`;
-        previewSection.style.display = 'block';
-      }
-      
-      updateCostEstimate();
-    }
-
-    function updateCostEstimate() {
-      const messageLength = currentMessage.length;
-      const smsPerRecipient = Math.ceil(messageLength / 160) || 1;
-      const totalMessages = selectedRecipients.length * smsPerRecipient;
-      const costPerSms = 0.15;
-      const totalCost = totalMessages * costPerSms;
-      
-      document.getElementById('messageCount').textContent = totalMessages;
-      document.getElementById('estimatedCost').textContent = `₹${totalCost.toFixed(2)}`;
-    }
-
-    function loadRecentTemplates() {
-      const container = document.getElementById('recentTemplates');
-      const recent = templates.slice(0, 3);
-      
-      container.innerHTML = recent.map(template => `
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <small>${template.name}</small>
-          <button class="btn btn-sm btn-outline-primary" onclick="selectTemplate(${template.id})">Use</button>
-        </div>
-      `).join('');
-    }
-
-    function loadQuickGroups() {
-      const container = document.getElementById('quickGroups');
-      
-      container.innerHTML = groups.slice(0, 4).map(group => `
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <small>${group.name} (${group.member_count})</small>
-          <button class="btn btn-sm btn-outline-success" onclick="selectGroup(${group.id})">Select</button>
-        </div>
-      `).join('');
-    }
-
-    function selectTemplate(templateId) {
-      document.querySelector('input[value="template"]').checked = true;
-      handleMessageTypeChange({ target: { value: 'template' } });
-      document.getElementById('template').value = templateId;
-      handleTemplateChange();
-    }
-
-    function selectGroup(groupId) {
-      document.querySelector('input[value="groups"]').checked = true;
-      handleSendToChange({ target: { value: 'groups' } });
-      document.getElementById('groupSelect').value = groupId;
-      updateRecipients();
-    }
-
-    function updateStats() {
-      // Update today's message count
-      document.getElementById('todayCount').textContent = Math.floor(Math.random() * 50) + 10;
-    }
-
-    async function handleSubmit(event) {
-      event.preventDefault();
-      
-      if (selectedRecipients.length === 0) {
-        alert('Please select at least one recipient');
-        return;
-      }
-      
-      if (!currentMessage.trim()) {
-        alert('Please enter a message');
-        return;
-      }
-      
-      // Show confirmation modal
-      showConfirmationModal();
-    }
-
-    function showConfirmationModal() {
-      const messageLength = currentMessage.length;
-      const smsPerRecipient = Math.ceil(messageLength / 160) || 1;
-      const totalMessages = selectedRecipients.length * smsPerRecipient;
-      const totalCost = totalMessages * 0.15;
-      
-      const details = document.getElementById('confirmationDetails');
-      details.innerHTML = `
-        <p><strong>Recipients:</strong> ${selectedRecipients.length}</p>
-        <p><strong>Message Length:</strong> ${messageLength} characters</p>
-        <p><strong>SMS per recipient:</strong> ${smsPerRecipient}</p>
-        <p><strong>Total Messages:</strong> ${totalMessages}</p>
-        <p><strong>Estimated Cost:</strong> ₹${totalCost.toFixed(2)}</p>
-        <hr>
-        <p><strong>Message Preview:</strong></p>
-        <div class="bg-light p-2 rounded">${currentMessage.replace(/\n/g, '<br>')}</div>
-      `;
-      
-      new bootstrap.Modal(document.getElementById('confirmModal')).show();
-    }
-
-    async function confirmSend() {
-      try {
-        const sendData = {
-          message: currentMessage,
-          recipients: selectedRecipients.map(r => r.phone),
-          sender_id: document.getElementById('senderId').value,
-          scheduled_time: document.getElementById('schedule').checked ? 
-            `${document.getElementById('scheduleDate').value} ${document.getElementById('scheduleTime').value}` : null,
-          delivery_report: document.getElementById('requestDeliveryReport').checked
-        };
-
-        const response = await window.AppAuth.authFetch(`${window.AppAuth.API_BASE}/sms/send/`, {
-          method: 'POST',
-          body: JSON.stringify(sendData)
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          alert('SMS sent successfully!');
-          window.location.href = '/history/';
+      const variableContainer = document.getElementById("variableInputs");
+      variableContainer.innerHTML = "";
+      uniqueVars.forEach(v => {
+        const type = detectVarType(v);
+        let inputEl = "";
+        if (type === "date") {
+          inputEl = `<input type="date" class="form-control" id="var_${v}" onchange="updateVariable('${v}', this.value)">`;
+        } else if (type === "time") {
+          inputEl = `<input type="time" class="form-control" id="var_${v}" onchange="updateVariable('${v}', this.value)">`;
+        } else if (type === "number") {
+          inputEl = `<input type="number" step="any" class="form-control" id="var_${v}" placeholder="Enter ${v}" oninput="updateVariable('${v}', this.value)">`;
         } else {
-          const error = await response.json();
-          alert('Error: ' + (error.message || 'Failed to send SMS'));
+          inputEl = `<input type="text" class="form-control" id="var_${v}" placeholder="Enter ${v}" oninput="updateVariable('${v}', this.value)">`;
         }
-      } catch (error) {
-        console.error('Error sending SMS:', error);
-        // Demo success
-        bootstrap.Modal.getInstance(document.getElementById('confirmModal')).hide();
-        alert('SMS sent successfully! (Demo mode)');
-        setTimeout(() => {
-          window.location.href = '/history/';
-        }, 1000);
+
+        variableContainer.innerHTML += `
+          <div class="col-md-4">
+            <label class="form-label">${v.replace(/_/g, ' ').toUpperCase()}</label>
+            ${inputEl}
+          </div>
+        `;
+      });
+      variableContainer.style.display = uniqueVars.length ? 'flex' : 'none';
+      renderPreview();
+    }
+
+    function updateVariable(varName, value) {
+      variableValues[varName] = value;
+      renderPreview();
+    }
+
+    function renderPreview() {
+      const tbody = document.querySelector("#previewTable tbody");
+      tbody.innerHTML = "";
+
+      if (!selectedTemplate) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">Select template and group</td></tr>`;
+        return;
+      }
+
+      if (!contacts.length) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">No contacts available</td></tr>`;
+        return;
+      }
+
+      contacts.forEach((c, idx) => {
+        let msg = selectedTemplate.content;
+        msg = msg.replace(/\{student_name\}/g, c.name);
+        msg = msg.replace(/\{phone_number\}/g, c.phone_number);
+
+        for (const [key, val] of Object.entries(variableValues)) {
+          msg = msg.replaceAll(`{${key}}`, val || '');
+        }
+
+        tbody.innerHTML += `
+          <tr>
+            <td>${idx + 1}</td>
+            <td>${c.name}</td>
+            <td>${c.phone_number}</td>
+            <td>${msg}</td>
+          </tr>
+        `;
+      });
+    }
+
+    async function handleSubmit(e) {
+      e.preventDefault();
+
+      if (!selectedTemplate || !contacts.length) {
+        alert("Select a template and group first!");
+        return;
+      }
+
+      const personalizedMessages = contacts.map(c => {
+        let text = selectedTemplate.content;
+        text = text.replace(/\{student_name\}/g, c.name);
+        text = text.replace(/\{phone_number\}/g, c.phone_number);
+        for (const [key, val] of Object.entries(variableValues)) {
+          text = text.replaceAll(`{${key}}`, val || '');
+        }
+        return { name: c.name, phone: c.phone_number, message: text };
+      });
+
+      const payload = {
+        template_id: selectedTemplate.id,
+        recipients: personalizedMessages.map(p => p.phone),
+        messages: personalizedMessages,
+      };
+
+      // 🔹 Get CSRF token from the meta tag
+      const csrftoken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+      const res = await fetch(`${window.API_BASE}/sms/send/`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrftoken, // ✅ include this
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        alert("SMS sent successfully!");
+      } else {
+        const err = await res.json();
+        alert("Error: " + (err.message || "Failed to send SMS"));
       }
     }
 
-    // Initialize when page loads
-    document.addEventListener('DOMContentLoaded', initializePage);
-  </script>
+      </script>
 </body>
 </html>

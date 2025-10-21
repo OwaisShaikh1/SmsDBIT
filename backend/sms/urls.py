@@ -1,37 +1,11 @@
-from django.urls import path, include
-from rest_framework_simplejwt.views import TokenRefreshView
-from . import views
-
-app_name = 'sms'
+from django.urls import path
+from .views import get_contacts, sidebar_view, dashboard_page, get_groups, get_templates, send_sms
 
 urlpatterns = [
-    # Authentication
-    path('auth/register/', views.UserRegistrationView.as_view(), name='register'),
-    path('auth/login/', views.UserLoginView.as_view(), name='login'),
-    path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('auth/profile/', views.UserProfileView.as_view(), name='profile'),
-
-    # HTML partials / pages (role-aware)
-    path('sidebar/', views.api_sidebar_view, name='api_sidebar'),      # returns sidebar HTML partial (JWT auth)
-    path('dashboard/page/', views.dashboard_page, name='dashboard_page'),  # role-aware HTML dashboard page
-
-    # SMS Operations (API)
-    path('send-sms/', views.SendSMSView.as_view(), name='send_sms'),
-    path('bulk-send/', views.bulk_send_sms, name='bulk_send_sms'),
-    path('history/', views.SMSHistoryView.as_view(), name='sms_history'),
-    path('history/<int:pk>/', views.SMSMessageDetailView.as_view(), name='sms_detail'),
-
-    # Templates
-    path('templates/', views.TemplateListCreateView.as_view(), name='template_list'),
-    path('templates/<int:pk>/', views.TemplateDetailView.as_view(), name='template_detail'),
-
-    # Sender IDs
-    path('senders/', views.SenderIDListCreateView.as_view(), name='sender_list'),
-    path('senders/<int:pk>/', views.SenderIDDetailView.as_view(), name='sender_detail'),
-
-    # API Credentials
-    path('credentials/', views.APICredentialsView.as_view(), name='api_credentials'),
-
-    # Dashboard API (JSON) - keep this for programmatic use
-    path('dashboard/', views.DashboardStatsView.as_view(), name='dashboard_stats'),
+    path("contacts/", get_contacts, name="api_contacts"),   # /api/contacts/
+    path("sidebar/", sidebar_view, name="sidebar_view"),
+    path("dashboard/", dashboard_page, name="dashboard_page"),
+    path("groups/", get_groups, name="api_groups"),
+    path("templates/", get_templates, name="api_templates"),
+    path("sms/send/", send_sms, name="api_send_sms_message"),
 ]
