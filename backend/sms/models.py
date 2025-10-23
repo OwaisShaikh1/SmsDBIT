@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
+from django.conf import settings
+from django.utils import timezone
 
 
 # --------------------------
@@ -16,8 +18,7 @@ class User(AbstractUser):
     phone_number = models.CharField(validators=[phone_regex], max_length=17, blank=True)
     company = models.CharField(max_length=255, blank=True)
     is_verified = models.BooleanField(default=False)
-    
-    # NEW FIELD — class or department the teacher is assigned to
+
     assigned_class = models.CharField(max_length=100, blank=True, null=True)
 
     ROLE_CHOICES = [
@@ -97,7 +98,7 @@ class Template(models.Model):
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='student')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='approved')
     variable_schema = models.JSONField(null=True, blank=True)
-    class_scope = models.CharField(max_length=100, blank=True, null=True)  # 🔹 NEW: restrict template to class
+    class_scope = models.CharField(max_length=100, blank=True, null=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -121,12 +122,11 @@ class Group(models.Model):
         related_name='teacher_groups',
         limit_choices_to={'role': 'teacher'}
     )
-    class_dept = models.CharField(max_length=100, blank=True, null=True)  # 🔹 NEW: linked to teacher.assigned_class
+    class_dept = models.CharField(max_length=100, blank=True, null=True)
     description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
-        # Auto-assign class_dept if teacher has assigned_class
         if self.teacher and not self.class_dept:
             self.class_dept = self.teacher.assigned_class
         super().save(*args, **kwargs)
@@ -136,7 +136,7 @@ class Group(models.Model):
 
 
 # --------------------------
-# CONTACTS (Students/Parents)
+# CONTACTS
 # --------------------------
 class StudentContact(models.Model):
     """Individual contacts within a group (filtered by class)"""
@@ -163,48 +163,99 @@ class StudentContact(models.Model):
 
 
 # --------------------------
+# CAMPAIGNS
+# --------------------------
+class Campaign(models.Model):
+    """Represents a batch/campaign of SMS messages (e.g., announcements, reminders)."""
+
+    STATUS_CHOICES = [
+        ("draft", "Draft"),
+        ("scheduled", "Scheduled"),
+        ("sending", "Sending"),
+        ("completed", "Completed"),
+        ("failed", "Failed"),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="campaigns")
+    title = models.CharField(max_length=255, help_text="Name of the campaign, e.g. 'Parent Meeting 23 Oct'")
+    description = models.TextField(blank=True, null=True)
+    template = models.ForeignKey("Template", on_delete=models.SET_NULL, null=True, blank=True, related_name="campaigns")
+    group = models.ForeignKey("Group", on_delete=models.SET_NULL, null=True, blank=True, related_name="campaigns")
+    sender_id = models.ForeignKey("SenderID", on_delete=models.SET_NULL, null=True, blank=True, related_name="campaigns")
+
+    total_recipients = models.PositiveIntegerField(default=0)
+    total_sent = models.PositiveIntegerField(default=0)
+    total_delivered = models.PositiveIntegerField(default=0)
+    total_failed = models.PositiveIntegerField(default=0)
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
+    scheduled_for = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.title} ({self.status})"
+
+    def update_stats(self):
+        """Aggregates SMS message results into campaign totals."""
+        related_messages = self.messages.all()
+        self.total_recipients = sum(m.total_recipients for m in related_messages)
+        self.total_sent = sum(1 for m in related_messages if m.status in ["sent", "delivered"])
+        self.total_delivered = sum(m.successful_deliveries for m in related_messages)
+        self.total_failed = sum(m.failed_deliveries for m in related_messages)
+        self.save()
+
+
+# --------------------------
 # SMS MESSAGES
 # --------------------------
-# sms/models.py
-from django.db import models
-
-from django.conf import settings
-from django.db import models
-import json
-
 class SMSMessage(models.Model):
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,  # ✅ Use this instead of 'auth.User'
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='sms_messages'
-    )
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='sms_messages')
+    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, null=True, blank=True, related_name="messages")
+
     message_text = models.TextField()
-    recipients = models.JSONField(default=list)  # stores list of phone numbers
+    recipients = models.JSONField(default=list)
     status = models.CharField(max_length=20, default='pending')
     api_response = models.JSONField(null=True, blank=True)
     sent_at = models.DateTimeField(null=True, blank=True)
+
     successful_deliveries = models.IntegerField(default=0)
     failed_deliveries = models.IntegerField(default=0)
     total_recipients = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"SMS to {len(self.recipients)} recipients"
+        return f"SMS to {len(self.recipients)} recipients (Campaign: {self.campaign.title if self.campaign else 'N/A'})"
 
     def set_recipients_list(self, recipients_list):
-        """Stores recipients as JSON and updates total count"""
         self.recipients = recipients_list or []
         self.total_recipients = len(recipients_list or [])
         self.save()
+
+
+# --------------------------
+# INDIVIDUAL RECIPIENT LOGS
+# --------------------------
+class SMSRecipient(models.Model):
+    """Tracks delivery status of each recipient within a message."""
+    message = models.ForeignKey(SMSMessage, on_delete=models.CASCADE, related_name="recipient_logs")
+    phone_number = models.CharField(max_length=15)
+    api_message_id = models.CharField(max_length=100, null=True, blank=True)
+    status = models.CharField(max_length=20, default="pending")  # pending/sent/delivered/failed
+    submit_time = models.DateTimeField(null=True, blank=True)
+    delivery_time = models.DateTimeField(null=True, blank=True)
+    error_description = models.TextField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.phone_number} ({self.status})"
+
 
 # --------------------------
 # USAGE STATS
 # --------------------------
 class SMSUsageStats(models.Model):
     """Tracks per-user SMS usage"""
-    user = models.OneToOneField('User', on_delete=models.CASCADE, related_name='usage_stats')
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='usage_stats')
     total_sent = models.PositiveIntegerField(default=0)
     total_delivered = models.PositiveIntegerField(default=0)
     total_failed = models.PositiveIntegerField(default=0)
@@ -215,23 +266,17 @@ class SMSUsageStats(models.Model):
     def __str__(self):
         return f"{self.user.email} - Usage Stats"
 
-    # ✅ ADD THIS
     def update_stats(self, sms_message):
         """Update stats based on a new SMSMessage record"""
         try:
             self.total_sent += sms_message.total_recipients
             self.total_delivered += sms_message.successful_deliveries
             self.total_failed += sms_message.failed_deliveries
-
-            # Example cost calculation — adjust if needed
-            sms_cost_per_message = 0.25  # e.g., ₹0.25 per message
+            sms_cost_per_message = 0.25
             self.total_cost += sms_message.total_recipients * sms_cost_per_message
             self.remaining_credits = max(self.remaining_credits - sms_message.total_recipients, 0)
-
             self.save()
-            return True
         except Exception as e:
             import logging
             logger = logging.getLogger(__name__)
             logger.error(f"Error updating usage stats for {self.user.email}: {e}")
-            return False

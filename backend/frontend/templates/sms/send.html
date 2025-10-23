@@ -15,283 +15,389 @@
     .sidebar a.active { background-color: #3b82f6 !important; }
     .header { background-color: white; padding: 15px 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .card { border: none; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-    .char-count { font-size: 0.8rem; color: #6b7280; }
     .preview-table th, .preview-table td { font-size: 0.9rem; vertical-align: middle; }
+    .char-count { font-size: 0.8rem; color: #6b7280; }
   </style>
 </head>
 <body>
-  <script>window.API_BASE = '{{ API_BASE }}';</script>
+<script>window.API_BASE = '{{ API_BASE }}';</script>
 
-  <div class="container-fluid">
-    <div class="row">
-      <!-- Sidebar -->
-      <div class="col-md-2 p-0" id="sidebarContainer">
-        <noscript>{% include 'includes/sidebar.html' with role=user_role %}</noscript>
-        <div id="sidebarLoader" style="height:100vh;background:#1e3a8a;color:white;display:flex;align-items:center;justify-content:center;">
-          <div>Loading navigation...</div>
+<div class="container-fluid">
+  <div class="row">
+    <!-- Sidebar -->
+    <div class="col-md-2 p-0" id="sidebarContainer">
+      <noscript>{% include 'includes/sidebar.html' with role=user_role %}</noscript>
+      <div id="sidebarLoader" style="height:100vh;background:#1e3a8a;color:white;display:flex;align-items:center;justify-content:center;">
+        <div>Loading navigation...</div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="col-md-10">
+      <div class="header d-flex justify-content-between align-items-center">
+        <div>
+          <h4 class="mb-0">Send SMS</h4>
+          <small class="text-muted">Compose and personalize messages</small>
+        </div>
+        <div class="text-end">
+          <div style="font-size: .85rem; color: #6b7280;">Signed in as</div>
+          <strong>{{ user.email }}</strong>
         </div>
       </div>
 
-      <!-- Main Content -->
-      <div class="col-md-10">
-        <div class="header d-flex justify-content-between align-items-center">
-          <div>
-            <h4 class="mb-0">Send SMS</h4>
-            <small class="text-muted">Compose and personalize messages</small>
-          </div>
-          <div class="text-end">
-            <div style="font-size: .85rem; color: #6b7280;">Signed in as</div>
-            <strong>{{ user.email }}</strong>
-          </div>
+      <div class="container mt-4">
+        <!-- Stats -->
+        <div class="row g-3 mb-4">
+          <div class="col-md-3"><div class="card text-center p-3"><h6>Messages Today</h6><h4 id="todayCount">0</h4></div></div>
+          <div class="col-md-3"><div class="card text-center p-3"><h6>Remaining Credits</h6><h4 id="remainingCredits">2,000</h4></div></div>
+          <div class="col-md-3"><div class="card text-center p-3"><h6>Delivery Rate</h6><h4 id="deliveryRate">95%</h4></div></div>
+          <div class="col-md-3"><div class="card text-center p-3"><h6>Cost / SMS</h6><h4>₹0.15</h4></div></div>
         </div>
 
-        <div class="container mt-4">
-          <!-- Stats -->
-          <div class="row g-3 mb-4">
-            <div class="col-md-3"><div class="card text-center p-3"><h6>Messages Today</h6><h4 id="todayCount">0</h4></div></div>
-            <div class="col-md-3"><div class="card text-center p-3"><h6>Remaining Credits</h6><h4 id="remainingCredits">2,000</h4></div></div>
-            <div class="col-md-3"><div class="card text-center p-3"><h6>Delivery Rate</h6><h4 id="deliveryRate">95%</h4></div></div>
-            <div class="col-md-3"><div class="card text-center p-3"><h6>Cost / SMS</h6><h4>₹0.15</h4></div></div>
-          </div>
-
-          <!-- SMS Form -->
-          <div class="card p-4 mb-5">
-            <form id="smsForm" onsubmit="return handleSubmit(event)">
-              <!-- Template -->
-              <div class="mb-3">
-                <label class="form-label">Select Template</label>
-                <select class="form-select" id="templateSelect" onchange="onTemplateSelect()">
-                  <option value="">-- Select a Template --</option>
+        <!-- SMS Form -->
+        <div class="card p-4 mb-5">
+          <form id="smsForm" onsubmit="return handleSubmit(event)">
+            
+            <!-- Campaign -->
+            <div class="mb-3">
+              <label class="form-label">Campaign</label>
+              <div class="input-group">
+                <select class="form-select" id="campaignSelect">
+                  <option value="">-- New Campaign --</option>
                 </select>
+                <button class="btn btn-outline-secondary" type="button" onclick="createNewCampaign()">
+                  <i class="fa fa-plus"></i> New
+                </button>
               </div>
+              <small class="text-muted">You can group messages under a campaign for tracking.</small>
+            </div>
 
-              <!-- Group -->
-              <div class="mb-3">
-                <label class="form-label">Select Group</label>
-                <select class="form-select" id="groupSelect" onchange="loadContactsForGroup()">
-                  <option value="">-- Select Group --</option>
-                </select>
+            <!-- Template -->
+            <div class="mb-3">
+              <label class="form-label">Select Template</label>
+              <select class="form-select" id="templateSelect" onchange="onTemplateSelect()">
+                <option value="">-- Select a Template --</option>
+              </select>
+            </div>
+
+
+            <!-- Group -->
+            <div class="mb-3">
+              <label class="form-label">Select Group</label>
+              <select class="form-select" id="groupSelect" onchange="loadContactsForGroup()">
+                <option value="">-- Select Group --</option>
+              </select>
+            </div>
+
+            <!-- Dynamic Variables -->
+            <div id="variableInputs" class="row g-3 mb-4" style="display:none;"></div>
+
+            <!-- Preview Table -->
+            <div class="mb-3">
+              <h6>Preview Messages</h6>
+              <div class="table-responsive">
+                <table class="table table-bordered preview-table" id="previewTable">
+                  <thead class="table-light">
+                    <tr>
+                      <th>#</th>
+                      <th>Student</th>
+                      <th>Phone</th>
+                      <th>Message</th>
+                    </tr>
+                  </thead>
+                  <tbody><tr><td colspan="4" class="text-center text-muted py-3">Select template and group</td></tr></tbody>
+                </table>
               </div>
+            </div>
 
-              <!-- Dynamic Variables -->
-              <div id="variableInputs" class="row g-3 mb-4" style="display:none;"></div>
-
-              <!-- Preview Table -->
-              <div class="mb-3">
-                <h6>Preview Messages</h6>
-                <div class="table-responsive">
-                  <table class="table table-bordered preview-table" id="previewTable">
-                    <thead class="table-light">
-                      <tr>
-                        <th>#</th>
-                        <th>Student</th>
-                        <th>Phone</th>
-                        <th>Message</th>
-                      </tr>
-                    </thead>
-                    <tbody><tr><td colspan="4" class="text-center text-muted py-3">Select template and group</td></tr></tbody>
-                  </table>
-                </div>
-              </div>
-
-              <!-- Submit -->
-              <div class="text-end">
-                <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane me-2"></i>Send SMS</button>
-              </div>
-            </form>
-          </div>
+            <!-- Submit -->
+            <div class="text-end">
+              <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane me-2"></i>Send SMS</button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
   </div>
+</div>
 
-  <!-- Sidebar Loader -->
-  <script>
-    fetch('/sidebar/', { credentials: 'include' })
-      .then(resp => resp.text())
-      .then(html => { document.getElementById('sidebarContainer').innerHTML = html; })
-      .catch(err => console.error('Sidebar load failed:', err));
-  </script>
+<!-- Sidebar Loader -->
+<script>
+  fetch('/sidebar/', { credentials: 'include' })
+    .then(resp => resp.text())
+    .then(html => { document.getElementById('sidebarContainer').innerHTML = html; })
+    .catch(err => console.error('Sidebar load failed:', err));
+</script>
 
-  <!-- Main Logic -->
+<meta name="csrf-token" content="{{ csrf_token }}">
 
-  <meta name="csrf-token" content="{{ csrf_token }}">
+<script>
+let templates = [];
+let groups = [];
+let contacts = [];
+let selectedTemplate = null;
+let variableValues = {};
 
-  <script>
-    let templates = [];
-    let groups = [];
-    let contacts = [];
-    let selectedTemplate = null;
-    let variableValues = {};
+// 🧩 Predefined variable mapping by template (based on content keywords)
+const templateVariables = {
+  "Greetings of the day": [
+    { label: "Username", type: "text" },
+    { label: "Password", type: "text" }
+  ],
+  "Cumulative attendance": [
+    { label: "Month / Subject", type: "text" },
+    { label: "Attendance %", type: "number" }
+  ],
+  "semester is starting": [
+    { label: "Semester", type: "text" },
+    { label: "Starting Date", type: "date" }
+  ],
+  "Parent Teacher Meeting on": [
+    { label: "Meeting Date", type: "date" },
+    { label: "Meeting Time", type: "time" }
+  ],
+  "sem has started": [
+    { label: "Semester", type: "text" },
+    { label: "Start Date", type: "date" }
+  ],
+  "there is a Parent Teacher Meeting": [
+    { label: "Meeting Date", type: "date" },
+    { label: "Meeting Time", type: "time" }
+  ]
+};
 
-    document.addEventListener("DOMContentLoaded", () => {
-      fetchTemplates();
-      fetchGroups();
-      document.getElementById("todayCount").textContent = Math.floor(Math.random() * 20 + 5);
+document.addEventListener("DOMContentLoaded", () => {
+  fetchTemplates();
+  fetchGroups();
+  document.getElementById("todayCount").textContent = Math.floor(Math.random() * 20 + 5);
+});
+
+async function fetchTemplates() {
+  const res = await fetch(`${window.API_BASE}/templates/`, { credentials: 'include' });
+  if (res.ok) {
+    templates = await res.json();
+    populateSelect("templateSelect", templates, "title");
+  }
+}
+
+async function fetchGroups() {
+  const res = await fetch(`${window.API_BASE}/groups/`, { credentials: 'include' });
+  if (res.ok) {
+    groups = await res.json();
+    populateSelect("groupSelect", groups, "name");
+  }
+}
+
+let campaigns = [];
+
+// Fetch existing campaigns
+async function fetchCampaigns() {
+  const res = await fetch(`${window.API_BASE}/campaigns/`, { credentials: 'include' });
+  if (res.ok) {
+    campaigns = await res.json();
+    populateSelect("campaignSelect", campaigns, "title");
+  }
+}
+
+// Create new campaign
+async function createNewCampaign() {
+  const title = prompt("Enter campaign title (e.g. Parent Meeting 23 Oct):");
+  if (!title) return;
+
+  const csrftoken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+  const res = await fetch(`${window.API_BASE}/campaigns/new/`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrftoken,
+    },
+    body: JSON.stringify({ title }),
+  });
+
+  if (res.ok) {
+    const newCampaign = await res.json();
+    if (newCampaign && newCampaign.id) {
+      campaigns.push(newCampaign);
+      populateSelect("campaignSelect", campaigns, "title");
+      document.getElementById("campaignSelect").value = newCampaign.id;
+      alert(`✅ Campaign "${newCampaign.title || 'Untitled'}" created!`);
+    } else {
+      alert("⚠️ Campaign created but no title returned.");
+    }
+  } else {
+    alert("❌ Failed to create campaign.");
+  }
+}
+
+// Load campaigns on page load
+document.addEventListener("DOMContentLoaded", () => {
+  fetchTemplates();
+  fetchGroups();
+  fetchCampaigns();
+  document.getElementById("todayCount").textContent = Math.floor(Math.random() * 20 + 5);
+});
+
+
+async function loadContactsForGroup() {
+  const groupId = document.getElementById("groupSelect").value;
+  if (!groupId) return;
+  const res = await fetch(`${window.API_BASE}/contacts/?group=${groupId}`, { credentials: 'include' });
+  if (res.ok) {
+    contacts = await res.json();
+    renderPreview();
+  }
+}
+
+function populateSelect(id, data, labelKey) {
+  const select = document.getElementById(id);
+  select.innerHTML = `<option value="">-- Select --</option>`;
+  data.forEach(item => {
+    select.insertAdjacentHTML("beforeend", `<option value="${item.id}">${item[labelKey]}</option>`);
+  });
+}
+
+// 🧠 Assign known variable labels and datatypes
+function onTemplateSelect() {
+  const selectedId = document.getElementById("templateSelect").value;
+  selectedTemplate = templates.find(t => t.id == selectedId);
+  if (!selectedTemplate) return;
+
+  const variableContainer = document.getElementById("variableInputs");
+  variableContainer.innerHTML = "";
+  variableValues = {};
+
+  // Determine which mapping applies based on template text
+  const matchKey = Object.keys(templateVariables).find(k =>
+    selectedTemplate.content.toLowerCase().includes(k.toLowerCase())
+  );
+
+  const vars = matchKey ? templateVariables[matchKey] : [];
+  if (!vars.length) {
+    variableContainer.style.display = "none";
+    renderPreview();
+    return;
+  }
+
+  // Create labeled inputs
+  vars.forEach((v, i) => {
+    let inputHTML = "";
+    if (v.type === "date") inputHTML = `<input type="date" class="form-control" id="var_${i+1}" onchange="updateVariable(${i+1}, this.value)">`;
+    else if (v.type === "time") inputHTML = `<input type="time" class="form-control" id="var_${i+1}" onchange="updateVariable(${i+1}, this.value)">`;
+    else if (v.type === "number") inputHTML = `<input type="number" step="any" class="form-control" id="var_${i+1}" placeholder="Enter ${v.label}" oninput="updateVariable(${i+1}, this.value)">`;
+    else inputHTML = `<input type="text" class="form-control" id="var_${i+1}" placeholder="Enter ${v.label}" oninput="updateVariable(${i+1}, this.value)">`;
+
+    variableContainer.innerHTML += `
+      <div class="col-md-4">
+        <label class="form-label">${v.label}</label>
+        ${inputHTML}
+      </div>
+    `;
+  });
+
+  variableContainer.style.display = "flex";
+  renderPreview();
+}
+
+function updateVariable(index, value) {
+  variableValues[index] = value;
+  renderPreview();
+}
+
+function renderPreview() {
+  const tbody = document.querySelector("#previewTable tbody");
+  tbody.innerHTML = "";
+
+  if (!selectedTemplate) {
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">Select template and group</td></tr>`;
+    return;
+  }
+
+  if (!contacts.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">No contacts available</td></tr>`;
+    return;
+  }
+
+  contacts.forEach((c, idx) => {
+    let msg = selectedTemplate.content;
+    let index = 0;
+    msg = msg.replace(/\{#var#\}/g, () => {
+      index++;
+      return variableValues[index] || '';
     });
 
-    async function fetchTemplates() {
-      const res = await fetch(`${window.API_BASE}/templates/`, { credentials: 'include' });
-      if (res.ok) {
-        templates = await res.json();
-        populateSelect("templateSelect", templates, "title");
-      }
-    }
+    tbody.innerHTML += `
+      <tr>
+        <td>${idx + 1}</td>
+        <td>${c.name}</td>
+        <td>${c.phone_number}</td>
+        <td>${msg}</td>
+      </tr>
+    `;
+  });
+}
 
-    async function fetchGroups() {
-      const res = await fetch(`${window.API_BASE}/groups/`, { credentials: 'include' });
-      if (res.ok) {
-        groups = await res.json();
-        populateSelect("groupSelect", groups, "name");
-      }
-    }
+async function handleSubmit(e) {
+  e.preventDefault();
 
-    async function loadContactsForGroup() {
-      const groupId = document.getElementById("groupSelect").value;
-      if (!groupId) return;
-      const res = await fetch(`${window.API_BASE}/contacts/?group=${groupId}`, { credentials: 'include' });
-      if (res.ok) {
-        contacts = await res.json();
-        renderPreview();
-      }
-    }
+  if (!selectedTemplate || !contacts.length) {
+    alert("Select a template and group first!");
+    return;
+  }
 
-    function populateSelect(id, data, labelKey) {
-      const select = document.getElementById(id);
-      select.innerHTML = `<option value="">-- Select --</option>`;
-      data.forEach(item => {
-        select.insertAdjacentHTML("beforeend", `<option value="${item.id}">${item[labelKey]}</option>`);
-      });
-    }
+  const personalizedMessages = contacts.map(c => {
+    let text = selectedTemplate.content;
+    let index = 0;
+    text = text.replace(/\{#var#\}/g, () => {
+      index++;
+      return variableValues[index] || '';
+    });
+    return { name: c.name, phone: c.phone_number, message: text };
+  });
 
-    // Detect variable types based on keywords
-    function detectVarType(varName) {
-      varName = varName.toLowerCase();
-      if (varName.includes("date")) return "date";
-      if (varName.includes("time")) return "time";
-      if (varName.includes("amount") || varName.includes("fee") || varName.includes("number")) return "number";
-      return "text";
-    }
+  const recipients = personalizedMessages.map(p => p.phone);
+  const message = personalizedMessages[0].message;
 
-    function onTemplateSelect() {
-      const selectedId = document.getElementById("templateSelect").value;
-      selectedTemplate = templates.find(t => t.id == selectedId);
-      if (!selectedTemplate) return;
+  const payload = {
+    template_id: selectedTemplate.id,
+    recipients: recipients,
+    message: message,
+    sender_id: "BOMBYS",
+    campaign_id: document.getElementById("campaignSelect").value || null
+  };
 
-      const templateText = selectedTemplate.content;
-      const matches = [...templateText.matchAll(/\{(.*?)\}/g)].map(m => m[1]);
-      const uniqueVars = [...new Set(matches.filter(v => v !== 'student_name' && v !== 'phone_number'))];
 
-      const variableContainer = document.getElementById("variableInputs");
-      variableContainer.innerHTML = "";
-      uniqueVars.forEach(v => {
-        const type = detectVarType(v);
-        let inputEl = "";
-        if (type === "date") {
-          inputEl = `<input type="date" class="form-control" id="var_${v}" onchange="updateVariable('${v}', this.value)">`;
-        } else if (type === "time") {
-          inputEl = `<input type="time" class="form-control" id="var_${v}" onchange="updateVariable('${v}', this.value)">`;
-        } else if (type === "number") {
-          inputEl = `<input type="number" step="any" class="form-control" id="var_${v}" placeholder="Enter ${v}" oninput="updateVariable('${v}', this.value)">`;
-        } else {
-          inputEl = `<input type="text" class="form-control" id="var_${v}" placeholder="Enter ${v}" oninput="updateVariable('${v}', this.value)">`;
-        }
+  const csrftoken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+  try {
+    const res = await fetch('/send/', {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrftoken,
+      },
+      body: JSON.stringify(payload),
+    });
 
-        variableContainer.innerHTML += `
-          <div class="col-md-4">
-            <label class="form-label">${v.replace(/_/g, ' ').toUpperCase()}</label>
-            ${inputEl}
-          </div>
-        `;
-      });
-      variableContainer.style.display = uniqueVars.length ? 'flex' : 'none';
+    const result = await res.json();
+    if (res.ok && result.success) {
+      alert(`✅ SMS sent successfully to ${recipients.length} recipient(s)!`);
+      const currentCount = parseInt(document.getElementById("todayCount").textContent);
+      document.getElementById("todayCount").textContent = currentCount + recipients.length;
+      document.getElementById("smsForm").reset();
+      selectedTemplate = null;
+      contacts = [];
+      variableValues = {};
+      document.getElementById("variableInputs").style.display = "none";
       renderPreview();
+    } else {
+      alert(`❌ Failed to send SMS: ${result.message || 'Unknown error'}`);
     }
+  } catch (error) {
+    alert(`❌ Network error: ${error.message}`);
+  }
+}
+</script>
 
-    function updateVariable(varName, value) {
-      variableValues[varName] = value;
-      renderPreview();
-    }
-
-    function renderPreview() {
-      const tbody = document.querySelector("#previewTable tbody");
-      tbody.innerHTML = "";
-
-      if (!selectedTemplate) {
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">Select template and group</td></tr>`;
-        return;
-      }
-
-      if (!contacts.length) {
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">No contacts available</td></tr>`;
-        return;
-      }
-
-      contacts.forEach((c, idx) => {
-        let msg = selectedTemplate.content;
-        msg = msg.replace(/\{student_name\}/g, c.name);
-        msg = msg.replace(/\{phone_number\}/g, c.phone_number);
-
-        for (const [key, val] of Object.entries(variableValues)) {
-          msg = msg.replaceAll(`{${key}}`, val || '');
-        }
-
-        tbody.innerHTML += `
-          <tr>
-            <td>${idx + 1}</td>
-            <td>${c.name}</td>
-            <td>${c.phone_number}</td>
-            <td>${msg}</td>
-          </tr>
-        `;
-      });
-    }
-
-    async function handleSubmit(e) {
-      e.preventDefault();
-
-      if (!selectedTemplate || !contacts.length) {
-        alert("Select a template and group first!");
-        return;
-      }
-
-      const personalizedMessages = contacts.map(c => {
-        let text = selectedTemplate.content;
-        text = text.replace(/\{student_name\}/g, c.name);
-        text = text.replace(/\{phone_number\}/g, c.phone_number);
-        for (const [key, val] of Object.entries(variableValues)) {
-          text = text.replaceAll(`{${key}}`, val || '');
-        }
-        return { name: c.name, phone: c.phone_number, message: text };
-      });
-
-      const payload = {
-        template_id: selectedTemplate.id,
-        recipients: personalizedMessages.map(p => p.phone),
-        messages: personalizedMessages,
-      };
-
-      // 🔹 Get CSRF token from the meta tag
-      const csrftoken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-
-      const res = await fetch(`${window.API_BASE}/sms/send/`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrftoken, // ✅ include this
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        alert("SMS sent successfully!");
-      } else {
-        const err = await res.json();
-        alert("Error: " + (err.message || "Failed to send SMS"));
-      }
-    }
-
-      </script>
 </body>
 </html>

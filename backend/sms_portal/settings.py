@@ -8,6 +8,9 @@ Adapted for the SMS Portal project (Bootstrap HTML frontend + Django REST backen
 from pathlib import Path
 from datetime import timedelta
 from decouple import config
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Base
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -84,7 +87,8 @@ DATABASES = {
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+            'charset': 'utf8mb4',
+            'init_command': "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci';",
         },
     }
 }
@@ -172,7 +176,7 @@ MYSMSMANTRA_CONFIG = {
     'API_URL': config('MYSMSMANTRA_API_URL', default='https://api.mylogin.co.in/api/v2/SendSMS'),
     'API_KEY': config('MYSMSMANTRA_API_KEY', default=''),
     'CLIENT_ID': config('MYSMSMANTRA_CLIENT_ID', default=''),
-    'SENDER_ID': config('MYSMSMANTRA_SENDER_ID', default=''),
+    'SENDER_ID': config('MYSMSMANTRA_SENDER_ID', default='DBITMS'),
 }
 
 LOGIN_URL = '/login/'

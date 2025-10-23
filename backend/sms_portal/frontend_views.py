@@ -4,11 +4,16 @@ from django.views.generic import TemplateView
 from django.template.exceptions import TemplateDoesNotExist
 from django.conf import settings
 from django.utils import timezone
-from django.http import HttpResponseNotFound
+from django.http import HttpResponseNotFound, JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from .auth_utils import AuthMixin, get_user_from_request
 import json
+import logging
 from datetime import date, datetime
 from calendar import monthrange
+
+logger = logging.getLogger(__name__)
 
 from django.views.generic import TemplateView
 from django.db.models import Sum, Count, Q
@@ -23,7 +28,10 @@ from sms.models import (
     Template,
     Group,
     SenderID,
+    StudentContact,
+    SMSRecipient,
 )
+from sms.services import MySMSMantraService
 
 
 def _base_context(request):
@@ -99,66 +107,22 @@ from sms.models import SMSMessage, SMSUsageStats, Template, Group
 def DashboardView(request):
     user = request.user
 
-    # --------------- Admin Stats ---------------
     if user.role == 'admin':
-        all_messages = SMSMessage.objects.all()
-        all_stats = SMSUsageStats.objects.aggregate(
-            total_sent=Sum('total_sent'),
-            total_delivered=Sum('total_delivered'),
-            total_failed=Sum('total_failed'),
-            total_cost=Sum('total_cost'),
-            remaining_credits=Sum('remaining_credits')
-        )
-
-        success_rate = 0
-        if all_stats['total_sent']:
-            success_rate = round((all_stats['total_delivered'] / all_stats['total_sent']) * 100, 2)
-
-        pending_templates = Template.objects.filter(status='pending').count()
-        recent_messages = all_messages.order_by('-created_at')[:10]
-
-        stats = {
-            **all_stats,
-            'success_rate': success_rate,
-            'monthly_stats': get_monthly_stats(all_messages)
-        }
-
-    # --------------- Teacher Stats ---------------
+        campaigns = Campaign.objects.prefetch_related('messages__recipient_logs').order_by('-created_at')[:10]
     else:
-        user_stats, _ = SMSUsageStats.objects.get_or_create(user=user)
-        groups_count = Group.objects.filter(teacher=user).count()
-        templates_count = Template.objects.filter(user=user, status='approved').count()
-        recent_messages = SMSMessage.objects.filter(user=user).order_by('-created_at')[:10]
+        campaigns = Campaign.objects.filter(user=user).prefetch_related('messages__recipient_logs').order_by('-created_at')[:10]
 
-        stats = {
-            'total_sent': user_stats.total_sent,
-            'total_delivered': user_stats.total_delivered,
-            'total_failed': user_stats.total_failed,
-            'remaining_credits': user_stats.remaining_credits,
-            'monthly_stats': get_monthly_stats(SMSMessage.objects.filter(user=user))
-        }
-
-        pending_templates = None
-
-    # --------------- Message Context ---------------
-    recent_messages_context = [
-        {
-            #'sender_id_name': msg.sender_id.name if msg.sender_id else '-',
-            'message_text': msg.message_text,
-            'total_recipients': msg.total_recipients or len(msg.recipients.split(',')),
-            'status': msg.status,
-            'sent_at': msg.sent_at,
-            'created_at': msg.created_at,
-        }
-        for msg in recent_messages
-    ]
+    stats = {
+        'total_sent': SMSMessage.objects.filter(user=user).count(),
+        'total_delivered': SMSMessage.objects.filter(user=user, status='sent').count(),
+        'total_failed': SMSMessage.objects.filter(user=user, status='failed').count(),
+        'remaining_credits': getattr(getattr(user, "usage_stats", None), "remaining_credits", 0),
+        'monthly_stats': get_monthly_stats(SMSMessage.objects.filter(user=user))
+    }
 
     context = {
         'stats': stats,
-        'pending_templates': pending_templates,
-        'groups_count': locals().get('groups_count', 0),
-        'templates_count': locals().get('templates_count', 0),
-        'recent_messages': recent_messages_context,
+        'campaigns': campaigns,
         'API_BASE': '/api/',
     }
 
@@ -195,9 +159,121 @@ def get_monthly_stats(messages):
         'failed': [stats[k]['failed'] for k in sorted_labels],
     }
 
+from sms.models import SMSMessage, Template, Campaign  # ✅ import Campaign
+from django.utils import timezone
+
+
 class SendSMSView(FrontendTemplateView):
     template_name = 'sms/send.html'
     require_auth = True
+
+    def post(self, request, *args, **kwargs):
+        try:
+            data = json.loads(request.body)
+            template_id = data.get('template_id')
+            recipients = data.get('recipients', [])
+            message = data.get('message', '')
+            sender_id = data.get('sender_id', 'BOMBYS')
+            campaign_id = data.get('campaign_id')
+
+            if not recipients:
+                return JsonResponse({'success': False, 'error': 'No recipients provided'}, status=400)
+
+            # 🧩 Find or create campaign
+            campaign = None
+            if campaign_id and str(campaign_id).isdigit():
+                try:
+                    campaign = Campaign.objects.get(id=int(campaign_id), user=request.user)
+                except Campaign.DoesNotExist:
+                    pass
+
+            if not campaign:
+                campaign = Campaign.objects.create(
+                    user=request.user,
+                    title=f"Campaign {timezone.now().strftime('%d-%b %H:%M')}",
+                    status="active"
+                )
+
+            # 📨 Create master SMSMessage record
+            sms_message = SMSMessage.objects.create(
+                user=request.user,
+                campaign=campaign,
+                message_text=message,
+                recipients=recipients,
+                total_recipients=len(recipients),
+                status='pending'
+            )
+
+            logger.info(f"Sending SMS to {len(recipients)} recipients under campaign {campaign.title}")
+
+            # 🔹 Send SMS via MySMSMantra API
+            service = MySMSMantraService(user=request.user)
+            result = service.send_sms_sync(
+                sms_message_id=sms_message.id,
+                message_text=message,
+                recipients_list=recipients,
+                sender_id=sender_id
+            )
+
+            if not result.get("success"):
+                sms_message.status = "failed"
+                sms_message.save()
+                return JsonResponse({'success': False, 'error': result.get('error')}, status=500)
+
+            # 🧾 Parse API response and save recipient details
+            api_data = result.get("api_response", {}).get("Data", [])
+            sent_count = 0
+            failed_count = 0
+
+            for entry in api_data:
+                phone = entry.get("MobileNumber")
+                api_msg_id = entry.get("MessageId")
+                error_code = entry.get("MessageErrorCode")
+                status = "sent" if error_code == 0 else "failed"
+
+                # ✅ Use api_message_id instead of message_id (UUID-safe)
+                SMSRecipient.objects.create(
+                    message=sms_message,
+                    phone_number=phone,
+                    api_message_id=api_msg_id,
+                    status=status,
+                    submit_time=timezone.now() if status == "sent" else None,
+                    error_description=entry.get("MessageErrorDescription")
+                )
+
+                if status == "sent":
+                    sent_count += 1
+                else:
+                    failed_count += 1
+
+            # ✅ Update SMSMessage and Campaign summaries
+            sms_message.status = "sent" if sent_count > 0 else "failed"
+            sms_message.sent_at = timezone.now()
+            sms_message.successful_deliveries = sent_count
+            sms_message.failed_deliveries = failed_count
+            sms_message.save()
+
+            campaign.total_recipients += len(api_data)
+            campaign.total_sent += sent_count
+            campaign.total_failed += failed_count
+            campaign.status = "completed" if failed_count == 0 else "partial"
+            campaign.save()
+
+            logger.info(f"✅ SMS campaign '{campaign.title}' results → Sent={sent_count}, Failed={failed_count}")
+
+            return JsonResponse({
+                'success': True,
+                'campaign_id': campaign.id,
+                'message_id': sms_message.id,
+                'delivered': sent_count,
+                'failed': failed_count,
+                'recipients': len(api_data),
+                'api_response': api_data,
+            })
+
+        except Exception as e:
+            logger.exception("Error in SendSMSView")
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 class MessageHistoryView(FrontendTemplateView):
