@@ -82,8 +82,8 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'sms_portal',
-        'USER': 'smsuser',
-        'PASSWORD': 'smspass123',
+        'USER': 'root',
+        'PASSWORD': 'Omkar@16905',
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {

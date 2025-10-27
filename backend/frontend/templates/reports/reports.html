@@ -21,12 +21,7 @@
   <div class="container-fluid">
     <div class="row">
       <div class="col-md-2 p-0" id="sidebarContainer">
-        <noscript>
-          {% include 'includes/sidebar.html' with role=user_role %}
-        </noscript>
-        <div id="sidebarLoader" style="height:100vh;background:#1e3a8a;color:white;display:flex;align-items:center;justify-content:center;">
-          <div>Loading navigation...</div>
-        </div>
+        {% include 'includes/sidebar.html' %}
       </div>
 
       <div class="col-md-10">
@@ -169,7 +164,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="{% static 'js/common/common.js' %}"></script>
   
   <script>
     let deliveryChart, categoryChart;

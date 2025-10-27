@@ -19,7 +19,7 @@ urlpatterns = [
 
     # Templates
     path('templates/', frontend_views.TemplatesView.as_view(), name='templates'),
-    path('approvals/', frontend_views.TemplateApprovalsView.as_view(), name='template_approvals'),
+    path('approvals/', frontend_views.template_approvals_view, name='template_approvals'),
 
     # Sender IDs / Settings
     path('sender-ids/', frontend_views.SenderIDsView.as_view(), name='sender_ids'),
@@ -35,7 +35,7 @@ urlpatterns = [
     path('contacts/', frontend_views.ContactsView.as_view(), name='contacts'),
 
     # Reports
-    path('reports/', frontend_views.ReportsView.as_view(), name='reports'),
+    path('reports/', frontend_views.reports_view, name='reports'),
 
     # Auth
     path('login/', frontend_views.LoginView.as_view(), name='login'),

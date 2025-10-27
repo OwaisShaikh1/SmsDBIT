@@ -338,19 +338,15 @@ class GroupsManagementView(FrontendTemplateView):
     require_auth = True
 
 
-class TemplateApprovalsView(FrontendTemplateView):
-    template_name = 'approvals/approvals.html'
-    require_auth = True
+@login_required(login_url='/login/')
+def template_approvals_view(request):
+    """Template approvals page for admin users only"""
+    # Only admin users should access template approvals
+    if request.user.role != 'admin':
+        return redirect('/dashboard/')
     
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        # Only admin users should access template approvals
-        user = context.get('user')
-        if user and getattr(user, 'role', None) != 'admin':
-            # Redirect non-admin users to dashboard
-            from django.shortcuts import redirect
-            return redirect('/dashboard/')
-        return context
+    context = _base_context(request)
+    return render(request, 'approvals/approvals.html', context)
 
 @login_required
 def activity_page(request):
@@ -407,9 +403,15 @@ class RegisterView(FrontendTemplateView):
     template_name = 'auth/register.html'
 
 
-class ReportsView(FrontendTemplateView):
-    template_name = 'reports/reports.html'
-    require_auth = True
+@login_required(login_url='/login/')
+def reports_view(request):
+    """Reports page for authenticated users"""
+    # Only admin users should access reports
+    if request.user.role != 'admin':
+        return redirect('/dashboard/')
+    
+    context = _base_context(request)
+    return render(request, 'reports/reports.html', context)
 
 
 class ContactsView(FrontendTemplateView):
