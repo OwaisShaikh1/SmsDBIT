@@ -411,9 +411,9 @@ class RegisterView(FrontendTemplateView):
 
 @login_required(login_url='/login/')
 def reports_view(request):
-    """Reports page for authenticated users"""
-    # Only admin users should access reports
-    if request.user.role != 'admin':
+    """Reports page for authenticated users (admins and teachers)"""
+    # Both admin and teacher users can access reports
+    if request.user.role not in ['admin', 'teacher']:
         return redirect('/dashboard/')
     
     context = _base_context(request)

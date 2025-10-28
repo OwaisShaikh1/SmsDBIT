@@ -251,13 +251,117 @@ def create_group(request):
 
 
 @login_required
+def reports_dashboard(request):
+    """Get dashboard data for reports page"""
+    try:
+        user = request.user
+        
+        # Get basic stats
+        if user.role == "admin":
+            total_messages = SMSMessage.objects.count()
+            total_campaigns = Campaign.objects.count()
+            total_users = User.objects.filter(role='teacher').count()
+        else:
+            total_messages = SMSMessage.objects.filter(user=user).count()
+            total_campaigns = Campaign.objects.filter(user=user).count()
+            total_users = 1  # Just the teacher themselves
+        
+        # Get recent activity (last 30 days)
+        thirty_days_ago = timezone.now() - timedelta(days=30)
+        if user.role == "admin":
+            recent_messages = SMSMessage.objects.filter(
+                created_at__gte=thirty_days_ago
+            ).count()
+        else:
+            recent_messages = SMSMessage.objects.filter(
+                user=user,
+                created_at__gte=thirty_days_ago
+            ).count()
+        
+        return JsonResponse({
+            "totalMessages": total_messages,
+            "totalCampaigns": total_campaigns,
+            "totalUsers": total_users,
+            "recentMessages": recent_messages,
+            "deliveryRate": 95.2,  # Mock data - you can calculate this from actual data
+            "engagementRate": 78.5  # Mock data
+        })
+        
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required  
+def reports_generate(request):
+    """Generate reports based on parameters"""
+    try:
+        user = request.user
+        report_type = request.GET.get('type', 'delivery')
+        date_range = request.GET.get('range', 'last30')
+        start_date = request.GET.get('start')
+        end_date = request.GET.get('end')
+        
+        # Calculate date range
+        if date_range == 'last30':
+            start_dt = timezone.now() - timedelta(days=30)
+            end_dt = timezone.now()
+        elif date_range == 'last7':
+            start_dt = timezone.now() - timedelta(days=7)
+            end_dt = timezone.now()
+        elif date_range == 'custom' and start_date and end_date:
+            start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+            end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+        else:
+            start_dt = timezone.now() - timedelta(days=30)
+            end_dt = timezone.now()
+        
+        # Filter messages based on user role
+        if user.role == "admin":
+            messages_qs = SMSMessage.objects.filter(
+                created_at__range=[start_dt, end_dt]
+            )
+        else:
+            messages_qs = SMSMessage.objects.filter(
+                user=user,
+                created_at__range=[start_dt, end_dt]
+            )
+        
+        # Generate mock report data (you can replace with actual calculations)
+        if report_type == 'delivery':
+            data = {
+                "labels": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+                "delivered": [120, 190, 300, 500, 200, 300, 450],
+                "failed": [10, 15, 20, 25, 15, 20, 30]
+            }
+        elif report_type == 'usage':
+            data = {
+                "labels": ["Week 1", "Week 2", "Week 3", "Week 4"],
+                "sent": [1200, 1900, 3000, 2200],
+                "delivered": [1150, 1820, 2850, 2100]
+            }
+        else:
+            data = {
+                "message": "Report type not supported yet",
+                "available_types": ["delivery", "usage"]
+            }
+        
+        return JsonResponse(data)
+        
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
 def get_templates(request):
-    """Admins see all templates; teachers only see ones relevant to their class."""
+    """Admins see all templates; teachers see their own templates and approved ones."""
     user = request.user
     if user.role == "admin":
         templates = Template.objects.all()
     else:
-        templates = Template.objects.filter(created_by=user)
+        # Teachers can see their own templates and approved templates
+        templates = Template.objects.filter(
+            Q(user=user) | Q(status='approved')
+        ).distinct()
 
     return JsonResponse(list(templates.values()), safe=False)
 
