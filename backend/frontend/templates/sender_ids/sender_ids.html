@@ -44,10 +44,7 @@
     <div class="row">
       <!-- Sidebar -->
       <div class="col-md-2 p-0" id="sidebarContainer">
-        <noscript>{% include 'includes/sidebar.html' with role=user_role %}</noscript>
-        <div id="sidebarLoader" style="height:100vh;background:#1e3a8a;color:white;display:flex;align-items:center;justify-content:center;">
-          <div>Loading navigation...</div>
-        </div>
+        {% include 'includes/sidebar.html' %}
       </div>
 
       <!-- Main content -->
@@ -205,7 +202,6 @@
   <script>
     // Initialize page
     document.addEventListener('DOMContentLoaded', function() {
-      loadSidebar();
       initializePage();
       loadSenderIds();
     });
@@ -572,8 +568,5 @@
     }
   </script>
 
-  <!-- Global Sidebar Loader -->
-  <script src="/static/js/components/sidebar.js"></script>
-  <script src="/static/js/common/common.js"></script>
 </body>
 </html>

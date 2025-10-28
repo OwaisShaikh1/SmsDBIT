@@ -22,8 +22,8 @@ urlpatterns = [
     path('approvals/', frontend_views.template_approvals_view, name='template_approvals'),
 
     # Sender IDs / Settings
-    path('sender-ids/', frontend_views.SenderIDsView.as_view(), name='sender_ids'),
-    path('settings/', frontend_views.SettingsView.as_view(), name='settings'),
+    path('sender-ids/', frontend_views.sender_ids_view, name='sender_ids'),
+    path('settings/', frontend_views.settings_view, name='settings'),
 
     # Users
     path('users/', frontend_views.manage_users, name='users_management'),
@@ -31,7 +31,7 @@ urlpatterns = [
     path('activity/', frontend_views.activity_page, name='activity_log'),
 
     # Groups / Contacts
-    path('groups/', frontend_views.GroupsManagementView.as_view(), name='groups_management'),
+    path('groups/', frontend_views.groups_management_view, name='groups_management'),
     path('contacts/', frontend_views.ContactsView.as_view(), name='contacts'),
 
     # Reports

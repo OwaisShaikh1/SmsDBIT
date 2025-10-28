@@ -135,8 +135,8 @@ def get_contacts(request):
 @login_required
 def dashboard_page(request):
     """Renders the dashboard HTML (admin/teacher role-aware)."""
-    from .views_helpers import build_dashboard_data  # move helper funcs there to keep clean
-    stats = build_dashboard_data(request.user)
+    # from .views_helpers import build_dashboard_data  # move helper funcs there to keep clean
+    stats = {}  # TODO: Implement build_dashboard_data function
 
     if getattr(request.user, 'role', None) == 'admin':
         pending_templates = Template.objects.filter(status='pending').count()
@@ -195,6 +195,59 @@ def get_groups(request):
         groups = Group.objects.none()
 
     return JsonResponse(list(groups.values()), safe=False)
+
+
+@login_required
+def create_group(request):
+    """Create a new group"""
+    if request.method != 'POST':
+        return JsonResponse({"error": "Only POST method allowed"}, status=405)
+    
+    try:
+        import json
+        data = json.loads(request.body)
+        
+        name = data.get('name', '').strip()
+        category = data.get('category', '').strip()
+        description = data.get('description', '').strip()
+        
+        if not name:
+            return JsonResponse({"error": "Group name is required"}, status=400)
+        
+        if not category:
+            return JsonResponse({"error": "Category is required"}, status=400)
+            
+        # Check if group with same name already exists
+        if Group.objects.filter(name=name, user=request.user).exists():
+            return JsonResponse({"error": "Group with this name already exists"}, status=400)
+        
+        # Create the group
+        group = Group.objects.create(
+            name=name,
+            category=category,
+            description=description,
+            user=request.user,
+            is_active=True
+        )
+        
+        return JsonResponse({
+            "success": True,
+            "message": "Group created successfully",
+            "group": {
+                "id": group.id,
+                "name": group.name,
+                "category": group.category,
+                "description": group.description,
+                "contacts": 0,  # New group starts with 0 contacts
+                "created_at": group.created_at.isoformat() if hasattr(group, 'created_at') else None,
+                "is_active": group.is_active
+            }
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON data"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
 
 
 @login_required

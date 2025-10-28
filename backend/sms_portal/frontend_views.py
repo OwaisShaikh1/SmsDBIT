@@ -291,14 +291,18 @@ class TemplatesView(FrontendTemplateView):
     require_auth = True
 
 
-class SettingsView(FrontendTemplateView):
-    template_name = 'settings/settings.html'
-    require_auth = True
+@login_required(login_url='/login/')
+def settings_view(request):
+    """Settings page for authenticated users"""
+    context = _base_context(request)
+    return render(request, 'settings/settings.html', context)
 
 
-class SenderIDsView(FrontendTemplateView):
-    template_name = 'sender_ids/sender_ids.html'
-    require_auth = True
+@login_required(login_url='/login/')
+def sender_ids_view(request):
+    """Sender IDs page for authenticated users"""
+    context = _base_context(request)
+    return render(request, 'sender_ids/sender_ids.html', context)
 
 
 from django.shortcuts import render
@@ -333,9 +337,11 @@ class UserProfileView(FrontendTemplateView):
     require_auth = True
 
 
-class GroupsManagementView(FrontendTemplateView):
-    template_name = 'groups/groups.html'
-    require_auth = True
+@login_required(login_url='/login/')
+def groups_management_view(request):
+    """Groups management page for authenticated users"""
+    context = _base_context(request)
+    return render(request, 'groups/groups.html', context)
 
 
 @login_required(login_url='/login/')

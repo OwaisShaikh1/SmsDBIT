@@ -14,7 +14,7 @@
   </style>
 </head>
 <body>
-  <!-- Set API_BASE before loading common.js -->
+  {% csrf_token %}
   <script>
     window.API_BASE = '{{ API_BASE }}';
   </script>
@@ -23,12 +23,7 @@
     <div class="row">
       <!-- Sidebar -->
       <div class="col-md-2 p-0" id="sidebarContainer">
-        <noscript>
-          {% include 'includes/sidebar.html' with role=user_role %}
-        </noscript>
-        <div id="sidebarLoader" style="height:100vh;background:#1e3a8a;color:white;display:flex;align-items:center;justify-content:center;">
-          <div>Loading navigation...</div>
-        </div>
+        {% include 'includes/sidebar.html' %}
       </div>
 
       <!-- Main content -->
@@ -492,7 +487,7 @@
     </div>
   </div>
 
-  <script src="{% static 'js/common/common.js' %}"></script>
+
   
   <script>
     // Tab switching functionality
@@ -529,8 +524,13 @@
       };
 
       try {
-        const response = await window.AppAuth.authFetch(`${window.AppAuth.API_BASE}/settings/general/`, {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const response = await fetch(`/api/settings/general/`, {
           method: 'POST',
+          headers: {
+            'X-CSRFToken': csrfToken,
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify(formData)
         });
 
@@ -561,8 +561,13 @@
       };
 
       try {
-        const response = await window.AppAuth.authFetch(`${window.AppAuth.API_BASE}/settings/sms/`, {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const response = await fetch(`/api/settings/sms/`, {
           method: 'POST',
+          headers: {
+            'X-CSRFToken': csrfToken,
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify(formData)
         });
 
@@ -600,8 +605,13 @@
     // Utility functions
     async function testSMSConnection() {
       try {
-        const response = await window.AppAuth.authFetch(`${window.AppAuth.API_BASE}/settings/sms/test/`, {
-          method: 'POST'
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const response = await fetch(`/api/settings/sms/test/`, {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': csrfToken,
+            'Content-Type': 'application/json'
+          }
         });
 
         if (response.ok) {
@@ -645,7 +655,13 @@
     // Load current settings on page load
     async function loadSettings() {
       try {
-        const response = await window.AppAuth.authFetch(`${window.AppAuth.API_BASE}/settings/`);
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const response = await fetch(`/api/settings/`, {
+          headers: {
+            'X-CSRFToken': csrfToken,
+            'Content-Type': 'application/json'
+          }
+        });
         if (response.ok) {
           const settings = await response.json();
           // Populate form fields with current settings
