@@ -171,8 +171,23 @@ const templateVariables = {
 document.addEventListener("DOMContentLoaded", () => {
   fetchTemplates();
   fetchGroups();
-  document.getElementById("todayCount").textContent = Math.floor(Math.random() * 20 + 5);
+  fetchSendPageStats();
 });
+
+// Fetch user-specific stats for the cards
+async function fetchSendPageStats() {
+  try {
+    const res = await fetch(`${window.API_BASE}/send/stats/`, { credentials: 'include' });
+    if (res.ok) {
+      const stats = await res.json();
+      document.getElementById("todayCount").textContent = stats.today_count;
+      document.getElementById("remainingCredits").textContent = stats.remaining_credits.toLocaleString();
+      document.getElementById("deliveryRate").textContent = stats.delivery_rate + '%';
+    }
+  } catch (err) {
+    console.error('Failed to load stats:', err);
+  }
+}
 
 async function fetchTemplates() {
   const res = await fetch(`${window.API_BASE}/templates/`, { credentials: 'include' });
@@ -237,7 +252,7 @@ document.addEventListener("DOMContentLoaded", () => {
   fetchTemplates();
   fetchGroups();
   fetchCampaigns();
-  document.getElementById("todayCount").textContent = Math.floor(Math.random() * 20 + 5);
+  fetchSendPageStats();
 });
 
 

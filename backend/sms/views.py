@@ -22,7 +22,7 @@ from .services import send_sms_message
 
 from .models import (
     User, SMSMessage, SenderID, Template, APICredentials, SMSUsageStats,
-    Group, StudentContact
+    Group, StudentContact, Campaign
 )
 from .serializers import (
     UserRegistrationSerializer, UserLoginSerializer, UserSerializer,
@@ -420,3 +420,314 @@ def create_campaign(request):
             return JsonResponse({"error": str(e)}, status=500)
 
     return JsonResponse({"error": "POST only"}, status=405)
+
+
+@login_required
+def create_user_view(request):
+    """Create a new user (admin only)"""
+    if request.method != 'POST':
+        return JsonResponse({"error": "POST only"}, status=405)
+    
+    # Only admins can create users
+    if request.user.role != 'admin':
+        return JsonResponse({"error": "Permission denied. Admin access required."}, status=403)
+    
+    try:
+        from django.db import transaction
+        
+        data = json.loads(request.body)
+        email = data.get('email', '').strip()
+        username = data.get('username', '').strip()
+        password = data.get('password', '')
+        role = data.get('role', 'teacher')
+        phone_number = data.get('phone_number', '').strip()
+        company = data.get('company', '').strip()
+        assigned_class = data.get('assigned_class', '').strip()
+        is_staff = data.get('is_staff', False)
+        credits = data.get('credits', 100)
+        
+        # Validate required fields
+        if not email or not username or not password:
+            return JsonResponse({"error": "Email, username, and password are required."}, status=400)
+        
+        # Check if user exists
+        if User.objects.filter(email=email).exists():
+            return JsonResponse({"error": f"User with email '{email}' already exists."}, status=400)
+        
+        if User.objects.filter(username=username).exists():
+            return JsonResponse({"error": f"User with username '{username}' already exists."}, status=400)
+        
+        # Create user in transaction
+        with transaction.atomic():
+            user = User.objects.create_user(
+                email=email,
+                username=username,
+                password=password,
+                role=role,
+                phone_number=phone_number,
+                company=company,
+                assigned_class=assigned_class,
+                is_staff=is_staff,
+                is_active=True,
+                is_verified=True
+            )
+            
+            # Create SMS Usage Stats
+            SMSUsageStats.objects.create(
+                user=user,
+                remaining_credits=credits,
+                total_sent=0,
+                total_delivered=0,
+                total_failed=0
+            )
+            
+            logger.info(f"User created: {email} by admin {request.user.email}")
+            
+            return JsonResponse({
+                "success": True,
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "username": user.username,
+                    "role": user.role,
+                    "credits": credits
+                }
+            })
+    
+    except Exception as e:
+        logger.exception("Error creating user")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def get_settings(request):
+    """Get user settings"""
+    if request.method != 'GET':
+        return JsonResponse({"error": "GET only"}, status=405)
+    
+    user = request.user
+    
+    # Get API credentials if they exist
+    api_creds = None
+    try:
+        api_creds = APICredentials.objects.get(user=user)
+    except APICredentials.DoesNotExist:
+        pass
+    
+    settings_data = {
+        "general": {
+            "username": user.username,
+            "email": user.email,
+            "phone": user.phone_number or "",
+            "company": user.company or "",
+            "assigned_class": user.assigned_class or ""
+        },
+        "sms": {
+            "api_key": api_creds.api_key if api_creds else "",
+            "client_id": api_creds.client_id if api_creds else "",
+            "sender_id": api_creds.sender_id if api_creds else "",
+            "has_credentials": api_creds is not None
+        }
+    }
+    
+    return JsonResponse(settings_data)
+
+
+@login_required
+def update_general_settings(request):
+    """Update general user settings"""
+    if request.method != 'POST':
+        return JsonResponse({"error": "POST only"}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        user = request.user
+        
+        # Update allowed fields
+        if 'username' in data:
+            username = data['username'].strip()
+            if username and username != user.username:
+                if User.objects.filter(username=username).exists():
+                    return JsonResponse({"error": "Username already exists"}, status=400)
+                user.username = username
+        
+        if 'phone' in data:
+            user.phone_number = data['phone'].strip()
+        
+        if 'company' in data:
+            user.company = data['company'].strip()
+        
+        if 'assigned_class' in data:
+            user.assigned_class = data['assigned_class'].strip()
+        
+        user.save()
+        
+        return JsonResponse({
+            "success": True,
+            "message": "Settings updated successfully"
+        })
+    
+    except Exception as e:
+        logger.exception("Error updating general settings")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def update_sms_settings(request):
+    """Update SMS API credentials"""
+    if request.method != 'POST':
+        return JsonResponse({"error": "POST only"}, status=405)
+    
+    try:
+        from django.db import transaction
+        
+        data = json.loads(request.body)
+        user = request.user
+        
+        api_key = data.get('api_key', '').strip()
+        client_id = data.get('client_id', '').strip()
+        sender_id = data.get('sender_id', '').strip()
+        
+        if not api_key or not client_id:
+            return JsonResponse({"error": "API Key and Client ID are required"}, status=400)
+        
+        with transaction.atomic():
+            api_creds, created = APICredentials.objects.get_or_create(
+                user=user,
+                defaults={
+                    'api_key': api_key,
+                    'client_id': client_id,
+                    'sender_id': sender_id or 'BOMBYS',
+                    'is_active': True
+                }
+            )
+            
+            if not created:
+                # Update existing credentials
+                api_creds.api_key = api_key
+                api_creds.client_id = client_id
+                api_creds.sender_id = sender_id or 'BOMBYS'
+                api_creds.is_active = True
+                api_creds.save()
+        
+        return JsonResponse({
+            "success": True,
+            "message": "SMS credentials updated successfully"
+        })
+    
+    except Exception as e:
+        logger.exception("Error updating SMS settings")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def test_sms_settings(request):
+    """Test SMS API credentials"""
+    if request.method != 'POST':
+        return JsonResponse({"error": "POST only"}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        phone = data.get('phone', '').strip()
+        
+        if not phone:
+            return JsonResponse({"error": "Phone number is required"}, status=400)
+        
+        # Send a test SMS
+        from .services import MySMSMantraService
+        
+        service = MySMSMantraService(user=request.user)
+        message = f"Test SMS from SMS Portal. Your API credentials are working! - {timezone.now().strftime('%d %b %Y %H:%M')}"
+        
+        # This would call the actual SMS API - for now just validate credentials exist
+        try:
+            credentials = service.get_user_credentials()
+            
+            # TODO: Actually send test SMS
+            # For now, just validate credentials are configured
+            
+            return JsonResponse({
+                "success": True,
+                "message": f"Test message would be sent to {phone}. Credentials validated."
+            })
+        
+        except ValueError as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    
+    except Exception as e:
+        logger.exception("Error testing SMS settings")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def get_send_page_stats(request):
+    """Get statistics for send SMS page (user-specific for teachers)"""
+    if request.method != 'GET':
+        return JsonResponse({"error": "GET only"}, status=405)
+    
+    try:
+        from django.db.models import Sum, Count, Q
+        from datetime import date
+        
+        user = request.user
+        today = timezone.now().date()
+        
+        # Filter campaigns by user role (same approach as message history)
+        if user.role == 'admin':
+            # Admin sees all campaigns
+            campaigns_query = Campaign.objects.all()
+        else:
+            # Teachers only see their own campaigns
+            campaigns_query = Campaign.objects.filter(user=user)
+        
+        # Get messages sent today by this user (use timezone-aware date range)
+        from datetime import datetime, timedelta
+        
+        # Create timezone-aware start and end of today
+        today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+        today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+        
+        if user.role == 'admin':
+            # Admin sees all messages sent today
+            today_messages = SMSMessage.objects.filter(
+                sent_at__gte=today_start,
+                sent_at__lte=today_end
+            )
+        else:
+            # Teachers see only their own messages sent today
+            today_messages = SMSMessage.objects.filter(
+                user=user,
+                sent_at__gte=today_start,
+                sent_at__lte=today_end
+            )
+        
+        # Count total recipients from today's messages (actual SMS sent)
+        successful = today_messages.aggregate(total=Sum('successful_deliveries'))['total'] or 0
+        failed = today_messages.aggregate(total=Sum('failed_deliveries'))['total'] or 0
+        today_count = successful + failed
+        
+        # Get user's SMS usage stats
+        try:
+            usage_stats = SMSUsageStats.objects.get(user=user)
+            remaining_credits = usage_stats.remaining_credits
+        except SMSUsageStats.DoesNotExist:
+            remaining_credits = 0
+        
+        # Calculate delivery rate from all campaigns (same as message history)
+        all_campaigns = campaigns_query.all()
+        
+        total_sent = sum(camp.total_sent or 0 for camp in all_campaigns)
+        total_delivered = sum(camp.total_delivered or 0 for camp in all_campaigns)
+        
+        delivery_rate = round((total_delivered / total_sent * 100), 1) if total_sent > 0 else 0
+        
+        return JsonResponse({
+            "today_count": today_count,
+            "remaining_credits": remaining_credits,
+            "delivery_rate": delivery_rate,
+            "cost_per_sms": 0.15  # Fixed cost
+        })
+    
+    except Exception as e:
+        logger.exception("Error getting send page stats")
+        return JsonResponse({"error": str(e)}, status=500)
