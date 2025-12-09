@@ -30,6 +30,7 @@ from sms.models import (
     SenderID,
     StudentContact,
     SMSRecipient,
+    Campaign,
 )
 from sms.services import MySMSMantraService
 
@@ -246,17 +247,16 @@ class SendSMSView(FrontendTemplateView):
                 else:
                     failed_count += 1
 
-            # ✅ Update SMSMessage and Campaign summaries
+            # ✅ Update SMSMessage
             sms_message.status = "sent" if sent_count > 0 else "failed"
             sms_message.sent_at = timezone.now()
             sms_message.successful_deliveries = sent_count
             sms_message.failed_deliveries = failed_count
             sms_message.save()
 
-            campaign.total_recipients += len(api_data)
-            campaign.total_sent += sent_count
-            campaign.total_failed += failed_count
-            campaign.status = "completed" if failed_count == 0 else "partial"
+            # ✅ Auto-calculate Campaign statistics using update_stats()
+            campaign.update_stats()
+            campaign.status = "completed" if campaign.total_failed == 0 else "partial"
             campaign.save()
 
             logger.info(f"✅ SMS campaign '{campaign.title}' results → Sent={sent_count}, Failed={failed_count}")
@@ -279,6 +279,31 @@ class SendSMSView(FrontendTemplateView):
 class MessageHistoryView(FrontendTemplateView):
     template_name = 'sms/message_history.html'
     require_auth = True
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+
+        # Get campaigns with messages and recipient logs (same as dashboard)
+        if user.role == 'admin':
+            campaigns = Campaign.objects.prefetch_related('messages__recipient_logs').order_by('-created_at')
+        else:
+            campaigns = Campaign.objects.filter(user=user).prefetch_related('messages__recipient_logs').order_by('-created_at')
+
+        # Calculate statistics
+        total_sent = sum(camp.total_sent or 0 for camp in campaigns)
+        total_delivered = sum(camp.total_delivered or 0 for camp in campaigns)
+        total_failed = sum(camp.total_failed or 0 for camp in campaigns)
+        success_rate = round((total_delivered / total_sent * 100), 1) if total_sent > 0 else 0
+
+        context['campaigns'] = campaigns
+        context['stats'] = {
+            'total_sent': total_sent,
+            'total_delivered': total_delivered,
+            'total_failed': total_failed,
+            'success_rate': success_rate,
+        }
+        return context
 
 
 class MessageDetailsView(FrontendTemplateView):
@@ -380,7 +405,7 @@ class LoginView(View):
         email = request.POST.get('email') or request.POST.get('username')
         password = request.POST.get('password')
 
-        user = authenticate(request, email=email, password=password)
+        user = authenticate(request, username=email, password=password)
         if user is not None:
             # Log the user in (creates Django session cookie)
             login(request, user)

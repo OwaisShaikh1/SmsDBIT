@@ -200,9 +200,9 @@ class Campaign(models.Model):
         """Aggregates SMS message results into campaign totals."""
         related_messages = self.messages.all()
         self.total_recipients = sum(m.total_recipients for m in related_messages)
-        self.total_sent = sum(1 for m in related_messages if m.status in ["sent", "delivered"])
-        self.total_delivered = sum(m.successful_deliveries for m in related_messages)
-        self.total_failed = sum(m.failed_deliveries for m in related_messages)
+        self.total_sent = sum((m.successful_deliveries or 0) + (m.failed_deliveries or 0) for m in related_messages)
+        self.total_delivered = sum(m.successful_deliveries or 0 for m in related_messages)
+        self.total_failed = sum(m.failed_deliveries or 0 for m in related_messages)
         self.save()
 
 

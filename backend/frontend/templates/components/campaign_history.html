@@ -1,0 +1,141 @@
+<!-- Campaign History Component -->
+
+<div class="card mb-4">
+  <div class="card-header bg-white fw-bold">
+    {% if request.user.role == 'admin' %}
+      Recent Campaigns (All Users)
+    {% else %}
+      Your Recent Campaigns
+    {% endif %}
+  </div>
+
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Campaign</th>
+            <th>Total Sent</th>
+            <th>Delivered</th>
+            <th>Failed</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if campaigns %}
+            {% for camp in campaigns %}
+              <!-- Campaign Row -->
+              <tr class="campaign-row" 
+                  data-bs-toggle="collapse" 
+                  data-bs-target="#camp{{ camp.id }}" 
+                  aria-expanded="false" 
+                  aria-controls="camp{{ camp.id }}" 
+                  style="cursor:pointer;">
+                <td><strong>{{ camp.title }}</strong></td>
+                <td>{{ camp.total_sent }}</td>
+                <td class="text-success">{{ camp.total_delivered }}</td>
+                <td class="text-danger">{{ camp.total_failed }}</td>
+                <td>
+                  {% if camp.status == 'completed' %}
+                    <span class="badge bg-success">Completed</span>
+                  {% elif camp.status == 'partial' %}
+                    <span class="badge bg-warning text-dark">Partial</span>
+                  {% elif camp.status == 'failed' %}
+                    <span class="badge bg-danger">Failed</span>
+                  {% else %}
+                    <span class="badge bg-secondary">{{ camp.status|capfirst }}</span>
+                  {% endif %}
+                </td>
+                <td>{{ camp.created_at|date:"d-m-Y H:i" }}</td>
+                <td><i class="fa fa-chevron-down text-primary"></i></td>
+              </tr>
+
+              <!-- Collapsible Section -->
+              <tr class="collapse" id="camp{{ camp.id }}">
+                <td colspan="7" class="p-0">
+                  <div class="bg-light p-3">
+                    <h6 class="fw-bold mb-3">Messages & Recipients</h6>
+
+                    {% if camp.messages.exists %}
+                      {% for msg in camp.messages.all|dictsortreversed:"created_at" %}
+                        <div class="mb-4 border rounded p-3 bg-white shadow-sm">
+                          <div class="fw-semibold">
+                            📨 Message ({{ msg.total_recipients }} recipients)
+                            <span class="text-muted small">
+                              — {{ msg.sent_at|default:msg.created_at|date:"d M Y, H:i" }}
+                            </span>
+                          </div>
+                          <div class="border rounded p-2 mt-2 bg-light">
+                            {{ msg.message_text }}
+                          </div>
+
+                          {% if msg.recipient_logs.exists %}
+                            <div class="mt-3">
+                              <table class="table table-sm table-bordered align-middle mb-0">
+                                <thead class="table-light">
+                                  <tr>
+                                    <th>#</th>
+                                    <th>Phone</th>
+                                    <th>Status</th>
+                                    <th>Submitted</th>
+                                    <th>Delivered</th>
+                                    <th>Error</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {% for r in msg.recipient_logs.all|dictsortreversed:"submit_time" %}
+                                    <tr>
+                                      <td>{{ forloop.counter }}</td>
+                                      <td>{{ r.phone_number }}</td>
+                                      <td>
+                                        {% if r.status == 'delivered' %}
+                                          <span class="badge bg-success">Delivered</span>
+                                        {% elif r.status == 'failed' %}
+                                          <span class="badge bg-danger">Failed</span>
+                                        {% elif r.status == 'sent' %}
+                                          <span class="badge bg-primary">Sent</span>
+                                        {% else %}
+                                          <span class="badge bg-secondary">{{ r.status|capfirst }}</span>
+                                        {% endif %}
+                                      </td>
+                                      <td>{{ r.submit_time|default:"—" }}</td>
+                                      <td>{{ r.delivery_time|default:"—" }}</td>
+                                      <td>
+                                        {% if r.error_description and r.error_description != 'Success' %}
+                                          {{ r.error_description }}
+                                        {% else %}
+                                          <span class="text-success">OK</span>
+                                        {% endif %}
+                                      </td>
+                                    </tr>
+                                  {% empty %}
+                                    <tr><td colspan="6" class="text-muted text-center">No recipients logged yet.</td></tr>
+                                  {% endfor %}
+                                </tbody>
+                              </table>
+                            </div>
+                          {% else %}
+                            <p class="text-muted small mt-2">No recipient logs found.</p>
+                          {% endif %}
+                        </div>
+                      {% endfor %}
+                    {% else %}
+                      <p class="text-muted small">No messages linked to this campaign yet.</p>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="7" class="text-muted text-center py-4">No campaigns found.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Required: Bootstrap JS Bundle for collapse functionality -->
+<!-- Include in parent template: <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script> -->

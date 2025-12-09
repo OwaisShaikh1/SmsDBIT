@@ -64,85 +64,31 @@
             <div class="col-md-3">
               <div class="card text-center p-3">
                 <h6>Total Sent</h6>
-                <h3 class="text-primary" id="totalSent">0</h3>
+                <h3 class="text-primary">{{ stats.total_sent }}</h3>
               </div>
             </div>
             <div class="col-md-3">
               <div class="card text-center p-3">
                 <h6>Delivered</h6>
-                <h3 class="text-success" id="totalDelivered">0</h3>
+                <h3 class="text-success">{{ stats.total_delivered }}</h3>
               </div>
             </div>
             <div class="col-md-3">
               <div class="card text-center p-3">
                 <h6>Failed</h6>
-                <h3 class="text-danger" id="totalFailed">0</h3>
+                <h3 class="text-danger">{{ stats.total_failed }}</h3>
               </div>
             </div>
             <div class="col-md-3">
               <div class="card text-center p-3">
                 <h6>Success Rate</h6>
-                <h3 class="text-info" id="successRate">0%</h3>
+                <h3 class="text-info">{{ stats.success_rate }}%</h3>
               </div>
             </div>
           </div>
 
-          <!-- History Table -->
-          <div class="card mb-5">
-            <div class="card-header bg-white fw-bold">
-              Message History
-            </div>
-            <div class="card-body p-0">
-              <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Date</th>
-                      <th>Message</th>
-                      <th>Recipients</th>
-                      <th>Status</th>
-                      <th>Delivery Rate</th>
-                      <th>Cost</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {% if messages %}
-                      {% for msg in messages %}
-                        <tr>
-                          <td>{{ msg.sent_at|default:msg.created_at|date:"d M Y, H:i" }}</td>
-                          <td style="max-width: 420px;">{{ msg.message_text|truncatechars:80 }}</td>
-                          <td>{{ msg.total_recipients }}</td>
-                          <td>
-                            {% if msg.status == 'delivered' %}
-                              <span class="badge bg-success">Delivered</span>
-                            {% elif msg.status == 'failed' %}
-                              <span class="badge bg-danger">Failed</span>
-                            {% elif msg.status == 'sent' %}
-                              <span class="badge bg-primary">Sent</span>
-                            {% else %}
-                              <span class="badge bg-secondary">{{ msg.status|capfirst }}</span>
-                            {% endif %}
-                          </td>
-                          <td>
-                            {% if msg.total_recipients > 0 %}
-                              {{ msg.successful_deliveries|floatformat:1 }} /
-                              {{ msg.total_recipients }} 
-                              ({{ msg.successful_deliveries|divisibleby:msg.total_recipients|yesno:"100%,0%" }})
-                            {% else %}
-                              -
-                            {% endif %}
-                          </td>
-                          <td>₹{{ msg.api_response.cost|default:"0.00" }}</td>
-                        </tr>
-                      {% endfor %}
-                    {% else %}
-                      <tr><td colspan="6" class="text-muted text-center py-4">No messages found.</td></tr>
-                    {% endif %}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          <!-- Campaign History Component -->
+          {% include 'components/campaign_history.html' with campaigns=campaigns %}
 
           <div class="text-center">
             <a href="/send" class="btn btn-primary">Send New Message</a>
@@ -152,6 +98,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Bootstrap JS Bundle (Required for collapse functionality) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <!-- Sidebar Load Script -->
   <script>

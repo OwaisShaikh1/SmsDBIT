@@ -18,7 +18,7 @@
     .preview-table th, .preview-table td { font-size: 0.9rem; vertical-align: middle; }
     .char-count { font-size: 0.8rem; color: #6b7280; }
   </style>
-</head>
+</head> 
 <body>
 <script>window.API_BASE = '{{ API_BASE }}';</script>
 
@@ -112,7 +112,9 @@
 
             <!-- Submit -->
             <div class="text-end">
-              <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane me-2"></i>Send SMS</button>
+              <button type="submit" class="btn btn-primary" id="sendBtn">
+                <i class="fas fa-paper-plane me-2"></i>Send SMS
+              </button>
             </div>
           </form>
         </div>
@@ -345,6 +347,11 @@ async function handleSubmit(e) {
     return;
   }
 
+  // Disable the submit button
+  const sendBtn = document.getElementById('sendBtn');
+  sendBtn.disabled = true;
+  sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sending...';
+
   const personalizedMessages = contacts.map(c => {
     let text = selectedTemplate.content;
     let index = 0;
@@ -381,20 +388,24 @@ async function handleSubmit(e) {
 
     const result = await res.json();
     if (res.ok && result.success) {
-      alert(`✅ SMS sent successfully to ${recipients.length} recipient(s)!`);
-      const currentCount = parseInt(document.getElementById("todayCount").textContent);
-      document.getElementById("todayCount").textContent = currentCount + recipients.length;
-      document.getElementById("smsForm").reset();
-      selectedTemplate = null;
-      contacts = [];
-      variableValues = {};
-      document.getElementById("variableInputs").style.display = "none";
-      renderPreview();
+      // Show success message briefly then redirect
+      alert(`✅ SMS sent successfully to ${recipients.length} recipient(s)! Redirecting to message history...`);
+      
+      // Redirect to message history page after 1 second
+      setTimeout(() => {
+        window.location.href = '/history/';
+      }, 1000);
     } else {
       alert(`❌ Failed to send SMS: ${result.message || 'Unknown error'}`);
+      // Re-enable button on failure
+      sendBtn.disabled = false;
+      sendBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Send SMS';
     }
   } catch (error) {
     alert(`❌ Network error: ${error.message}`);
+    // Re-enable button on error
+    sendBtn.disabled = false;
+    sendBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Send SMS';
   }
 }
 </script>

@@ -1,0 +1,137 @@
+Page/Module,Route,Macro Functionality,Sub-Functionality,Backend API,Frontend UI,Data Flow,Overall Status,Notes,Priority
+
+AUTHENTICATION MODULE,,,,,,,,,
+Login Page,/login/,User Authentication,Email/Password Login,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Has 1 bug: authenticate() uses email param instead of username,CRITICAL
+Login Page,/login/,Session Management,Create Session Cookie,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Django session-based auth,HIGH
+Login Page,/login/,Auto-Redirect,Redirect if Authenticated,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Redirects to /dashboard/,MEDIUM
+Login Page,/login/,User Registration,Signup Form,❌ Disabled,✅ Complete,❌ Not Connected,❌ NOT WORKING,Shows alert - backend not implemented,LOW
+Logout,/logout/,Logout Functionality,Session Destruction,✅ Working,✅ Complete,✅ Connected,✅ WORKING,POST method only,HIGH
+
+DASHBOARD MODULE,,,,,,,,,
+Dashboard,/dashboard/,Campaign Overview,List Recent Campaigns (Last 10),✅ Working,✅ Complete,✅ Connected,✅ WORKING,Role-specific filtering (admin sees all),HIGH
+Dashboard,/dashboard/,KPI Metrics,Total Sent/Delivered/Failed/Credits,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Real-time stats from database,HIGH
+Dashboard,/dashboard/,Campaign Details,Collapsible Campaign Messages,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Shows recipient logs with status,MEDIUM
+Dashboard,/dashboard/,Recipient Tracking,Per-Recipient Delivery Status,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Shows submit time and status,MEDIUM
+Dashboard,/dashboard/,Monthly Analytics,Chart Data Aggregation,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Monthly sent/failed statistics,MEDIUM
+Dashboard,/dashboard/,Role-Based View,Admin vs Teacher Dashboard,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Different data based on role,HIGH
+
+SMS OPERATIONS MODULE,,,,,,,,,
+Send SMS,/send/,Template Selection,Load and Select Templates,✅ Working,✅ Complete,✅ Connected,✅ WORKING,GET /api/templates/,HIGH
+Send SMS,/send/,Group Selection,Load and Select Groups,✅ Working,✅ Complete,✅ Connected,✅ WORKING,GET /api/groups/,HIGH
+Send SMS,/send/,Campaign Management,Create/Select Campaign,✅ Working,✅ Complete,✅ Connected,✅ WORKING,GET & POST /api/campaigns/,HIGH
+Send SMS,/send/,Dynamic Variables,Template Variable Inputs,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Parses {#var#} from template,HIGH
+Send SMS,/send/,Contact Loading,Fetch Group Contacts,✅ Working,✅ Complete,✅ Connected,✅ WORKING,GET /api/contacts/?group=ID,HIGH
+Send SMS,/send/,Message Preview,Personalized Message Preview,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Shows preview table with variables,MEDIUM
+Send SMS,/send/,Bulk SMS Sending,Send to Multiple Recipients,✅ Working,✅ Complete,✅ Connected,✅ WORKING,POST with recipients array,CRITICAL
+Send SMS,/send/,MySMSMantra Integration,API Call & Response Handling,✅ Working,✅ Complete,✅ Connected,✅ WORKING,MySMSMantraService class,CRITICAL
+Send SMS,/send/,Recipient Logging,Per-Recipient Status Tracking,✅ Working,✅ Complete,✅ Connected,✅ WORKING,SMSRecipient model tracks each,HIGH
+Send SMS,/send/,Campaign Stats Update,Update Campaign Totals,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Updates sent/delivered/failed counts,MEDIUM
+Message History,/history/,Message Listing,Display Historical Messages,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Shows all sent messages,HIGH
+Message History,/history/,Status Display,Message Status Badges,✅ Working,✅ Complete,✅ Connected,✅ WORKING,delivered/failed/sent badges,MEDIUM
+Message History,/history/,KPI Cards,Total Sent/Delivered/Failed/Rate,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Aggregated statistics,MEDIUM
+Message History,/history/,Date Formatting,Human-Readable Dates,✅ Working,✅ Complete,✅ Connected,✅ WORKING,JavaScript date formatting,LOW
+Message Details,/message/<id>/,Message Detail View,Single Message Details,⚠️ Unknown,✅ Complete,⚠️ Unknown,⚠️ UNKNOWN,Template exists but not verified,LOW
+
+TEMPLATE MANAGEMENT MODULE,,,,,,,,,
+Templates,/templates/,Template Listing,Display All Templates,✅ Working,✅ Complete,✅ Connected,✅ WORKING,GET /api/templates/,HIGH
+Templates,/templates/,Category Badges,Student/Teacher/Common Tags,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Color-coded badges,LOW
+Templates,/templates/,Status Badges,Approved/Pending/Rejected,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Status indicators,MEDIUM
+Templates,/templates/,Variable Schema Display,Show Template Variables,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Displays variable_schema JSON,MEDIUM
+Templates,/templates/,Stats Cards,Total/Approved/Pending/Rejected Counts,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Real-time aggregation,LOW
+Templates,/templates/,Add Template Modal,Create New Template,⚠️ Partial,✅ Complete,⚠️ Partial,⚠️ PARTIAL,Modal UI exists - needs POST endpoint,HIGH
+Templates,/templates/,Template CRUD,Create/Update/Delete Templates,⚠️ Partial,✅ Complete,⚠️ Partial,⚠️ PARTIAL,Only GET implemented fully,HIGH
+Template Approvals,/approvals/,Approval Listing,Show Pending Templates,❌ Mock Data,✅ Complete,❌ Not Connected,❌ NOT WORKING,Uses hardcoded data (line 203),HIGH
+Template Approvals,/approvals/,Approve Action,Approve Template,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,POST /api/templates/<id>/approve/ needed,HIGH
+Template Approvals,/approvals/,Reject Action,Reject Template,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,POST /api/templates/<id>/reject/ needed,HIGH
+Template Approvals,/approvals/,Bulk Actions,Multi-Template Approval,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,POST /api/templates/bulk-approve/ needed,MEDIUM
+Template Approvals,/approvals/,Filter Options,Status Filtering,❌ Mock Data,✅ Complete,❌ Not Connected,❌ NOT WORKING,GET /api/templates/?status=pending needed,MEDIUM
+
+GROUP & CONTACT MANAGEMENT,,,,,,,,,
+Groups,/groups/,Group Listing,Display All Groups,✅ Working,✅ Complete,✅ Connected,✅ WORKING,GET /api/groups/,HIGH
+Groups,/groups/,Stats Cards,Total/Contacts/Active/Avg Size,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Aggregated from database,MEDIUM
+Groups,/groups/,Create Group,New Group Form,✅ Working,✅ Complete,✅ Connected,✅ WORKING,POST /api/groups/create/,HIGH
+Groups,/groups/,Category Selection,Group Category Assignment,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Part of create form,MEDIUM
+Groups,/groups/,Group Details View,View Group Members,⚠️ Partial,✅ Complete,⚠️ Partial,⚠️ PARTIAL,UI exists - backend partial,MEDIUM
+Groups,/groups/,Contact Assignment,Add Contacts to Group,⚠️ Partial,✅ Complete,⚠️ Partial,⚠️ PARTIAL,Needs many-to-many endpoint,MEDIUM
+Contacts,/contacts/,Contact Listing,Display All Contacts,✅ Working,✅ Complete,✅ Connected,✅ WORKING,GET /api/contacts/,HIGH
+Contacts,/contacts/,Stats Cards,Total/Students/Parents/Groups,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Role-based filtering,MEDIUM
+Contacts,/contacts/,Role-Based Filtering,Filter by User Role,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Teachers see own class only,HIGH
+Contacts,/contacts/,Phone Validation,Contact Phone Validation,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Regex validation in model,MEDIUM
+Contacts,/contacts/,Add Contact,Create New Contact,⚠️ Partial,✅ Complete,⚠️ Partial,⚠️ PARTIAL,UI exists - POST endpoint needed,HIGH
+Contacts,/contacts/,Import Contacts,Bulk Contact Import,❌ Missing,❌ Missing,❌ Not Connected,❌ NOT WORKING,Feature not implemented,LOW
+
+USER MANAGEMENT MODULE,,,,,,,,,
+Users (Admin),/users/,User Listing,Display All Users,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Admin-only access,HIGH
+Users (Admin),/users/,Role Badges,Admin/Teacher Indicators,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Color-coded role tags,LOW
+Users (Admin),/users/,Status Indicators,Active/Inactive Status,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Shows user status,MEDIUM
+Users (Admin),/users/,Last Login Tracking,Login Timestamp Display,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Shows last_login field,LOW
+Users (Admin),/users/,Stats Cards,Total/Active/Admins/Teachers,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Aggregated counts,LOW
+Users (Admin),/users/,User CRUD,Create/Update/Delete Users,⚠️ Partial,✅ Complete,⚠️ Partial,⚠️ PARTIAL,Only list view working,MEDIUM
+User Profile,/profile/,Profile Display,Show User Information,⚠️ LocalStorage,✅ Complete,⚠️ Client-Side,⚠️ PARTIAL,Uses localStorage - not backend,MEDIUM
+User Profile,/profile/,Profile Update,Edit User Details,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,PUT /api/settings/profile/ needed,MEDIUM
+User Profile,/profile/,Password Change,Update Password,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,POST /api/settings/change-password/ needed,MEDIUM
+Activity Log,/activity/,Activity Display,Show User Actions,❌ Mock Data,⚠️ Stub,❌ Not Connected,❌ NOT WORKING,Placeholder data only,LOW
+Activity Log,/activity/,Activity Tracking,Log User Actions,❌ Missing,❌ Missing,❌ Not Connected,❌ NOT WORKING,No Activity model exists,LOW
+Activity Log,/activity/,Activity Feed API,Retrieve Activity Log,❌ Missing,❌ Missing,❌ Not Connected,❌ NOT WORKING,GET /api/activity/ needed,LOW
+
+SENDER ID & SETTINGS,,,,,,,,,
+Sender IDs,/sender-ids/,Sender ID Listing,Display Approved IDs,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,GET /api/sender-ids/ needed,HIGH
+Sender IDs,/sender-ids/,Status Badges,Active/Pending/Approved Tags,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,No backend data,MEDIUM
+Sender IDs,/sender-ids/,Create Sender ID,New Sender ID Form,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,POST /api/sender-ids/ needed,HIGH
+Sender IDs,/sender-ids/,DLT Registration,Register with DLT,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,DLT workflow not implemented,MEDIUM
+Sender IDs,/sender-ids/,Activate/Deactivate,Toggle Sender ID Status,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,PUT /api/sender-ids/<id>/activate/ needed,MEDIUM
+Sender IDs,/sender-ids/,Delete Sender ID,Remove Sender ID,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,DELETE /api/sender-ids/<id>/ needed,LOW
+Settings,/settings/,Profile Settings Tab,User Profile Management,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,No persistence,MEDIUM
+Settings,/settings/,API Settings Tab,API Key Management,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,GET/PUT /api/settings/api-credentials/ needed,HIGH
+Settings,/settings/,Notification Settings,Email/SMS Preferences,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,No backend,LOW
+Settings,/settings/,Security Settings,Password & 2FA,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,Password change not implemented,MEDIUM
+Settings,/settings/,Backup Settings,Backup/Restore Data,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,POST /api/settings/backup/ needed,LOW
+Settings,/settings/,Settings Persistence,Save Settings to DB,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,No API endpoints exist,HIGH
+
+REPORTS & ANALYTICS,,,,,,,,,
+Reports,/reports/,Dashboard Stats API,Basic Metrics,✅ Working,✅ Complete,✅ Connected,✅ WORKING,GET /api/reports/dashboard/,MEDIUM
+Reports,/reports/,Summary Report,Aggregate Statistics,⚠️ Partial,✅ Complete,⚠️ Partial,⚠️ PARTIAL,GET /api/reports/summary/ partially works,MEDIUM
+Reports,/reports/,Chart Visualization,Monthly/Weekly Charts,❌ Mock Data,✅ Complete,❌ Mock Data,❌ NOT WORKING,Uses hardcoded data (lines 195 324),MEDIUM
+Reports,/reports/,Date Range Filter,Filter by Date Range,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,Filter not connected to backend,MEDIUM
+Reports,/reports/,Report Type Selection,Select Report Category,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,No backend processing,LOW
+Reports,/reports/,Export CSV,Download CSV Report,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,POST /api/reports/export/ needed,MEDIUM
+Reports,/reports/,Export PDF,Download PDF Report,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,PDF generation not implemented,LOW
+Reports,/reports/,Delivery Rate Analysis,Calculate Success Rates,⚠️ Partial,✅ Complete,⚠️ Partial,⚠️ PARTIAL,Basic calculation works,MEDIUM
+Reports,/reports/,Campaign Performance,Campaign-Wise Analytics,❌ Missing,✅ Complete,❌ Not Connected,❌ NOT WORKING,Needs aggregation endpoint,MEDIUM
+
+COMMON COMPONENTS,,,,,,,,,
+Sidebar,/sidebar/,Dynamic Sidebar Loading,Load Sidebar HTML,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Fetch-based loading,HIGH
+Sidebar,/sidebar/,Role-Based Menu,Show Role-Specific Links,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Admin sees more options,HIGH
+404 Page,/404/,Custom Error Page,User-Friendly 404,✅ Working,✅ Complete,✅ Connected,✅ WORKING,Custom 404 handler,LOW
+Home Page,/,Root Redirect,Redirect to Dashboard/Login,✅ Working,✅ Complete,✅ Connected,✅ WORKING,home_redirect() function,LOW
+
+BACKEND API LAYER,,,,,,,,,
+API Layer,/api/contacts/,Contact API,Get Contacts,✅ Working,N/A,✅ Connected,✅ WORKING,GET endpoint,HIGH
+API Layer,/api/groups/,Groups API,Get Groups,✅ Working,N/A,✅ Connected,✅ WORKING,GET endpoint,HIGH
+API Layer,/api/groups/create/,Create Group API,Create New Group,✅ Working,N/A,✅ Connected,✅ WORKING,POST endpoint,HIGH
+API Layer,/api/templates/,Templates API,Get Templates,✅ Working,N/A,✅ Connected,✅ WORKING,GET endpoint with role filter,HIGH
+API Layer,/api/sms/send/,Send SMS API,Send SMS Message,✅ Working,N/A,✅ Connected,✅ WORKING,POST endpoint,CRITICAL
+API Layer,/api/campaigns/,Campaigns API,Get Campaigns,✅ Working,N/A,✅ Connected,✅ WORKING,GET endpoint,HIGH
+API Layer,/api/campaigns/new/,Create Campaign API,Create Campaign,✅ Working,N/A,✅ Connected,✅ WORKING,POST endpoint,HIGH
+API Layer,/api/reports/dashboard/,Reports Dashboard API,Basic Stats,✅ Working,N/A,✅ Connected,✅ WORKING,GET endpoint,MEDIUM
+API Layer,/api/reports/generate/,Generate Report API,Custom Reports,⚠️ Partial,N/A,⚠️ Partial,⚠️ PARTIAL,Basic implementation,MEDIUM
+
+SMS SERVICE LAYER,,,,,,,,,
+MySMSMantra Service,Backend,SMS Sending,Send SMS via API,✅ Working,N/A,✅ Connected,✅ WORKING,MySMSMantraService.send_sms_sync(),CRITICAL
+MySMSMantra Service,Backend,SMS History,Fetch Message History,✅ Working,N/A,✅ Connected,✅ WORKING,MySMSMantraService.get_sms_history(),MEDIUM
+MySMSMantra Service,Backend,Credential Management,Get API Credentials,✅ Working,N/A,✅ Connected,✅ WORKING,get_user_credentials(),HIGH
+MySMSMantra Service,Backend,Response Parsing,Parse API Response,✅ Working,N/A,✅ Connected,✅ WORKING,is_successful_response(),HIGH
+MySMSMantra Service,Backend,Error Handling,Handle API Errors,✅ Working,N/A,✅ Connected,✅ WORKING,update_sms_message_error(),HIGH
+MySMSMantra Service,Backend,Message Updates,Update SMS Status,✅ Working,N/A,✅ Connected,✅ WORKING,update_sms_message(),HIGH
+
+DATA MODELS,,,,,,,,,
+User Model,Backend,User Management,Email-Based Auth,✅ Complete,N/A,✅ Complete,✅ COMPLETE,11 fields with roles,HIGH
+Campaign Model,Backend,Campaign Tracking,Campaign Lifecycle,✅ Complete,N/A,✅ Complete,✅ COMPLETE,12 fields with relationships,HIGH
+SMSMessage Model,Backend,Message Records,Message Storage,✅ Complete,N/A,✅ Complete,✅ COMPLETE,12 fields with JSON support,HIGH
+SMSRecipient Model,Backend,Recipient Logs,Per-Recipient Tracking,✅ Complete,N/A,✅ Complete,✅ COMPLETE,10 fields with status,HIGH
+Template Model,Backend,Template Storage,Reusable Templates,✅ Complete,N/A,✅ Complete,✅ COMPLETE,10 fields with variables,HIGH
+Group Model,Backend,Group Management,Contact Grouping,✅ Complete,N/A,✅ Complete,✅ COMPLETE,5 fields with teacher link,HIGH
+StudentContact Model,Backend,Contact Records,Contact Storage,✅ Complete,N/A,✅ Complete,✅ COMPLETE,8 fields with validation,HIGH
+SenderID Model,Backend,Sender IDs,Approved Sender IDs,✅ Complete,N/A,✅ Complete,✅ COMPLETE,7 fields with approval flag,MEDIUM
+APICredentials Model,Backend,API Keys,User API Keys,✅ Complete,N/A,✅ Complete,✅ COMPLETE,6 fields one-to-one user,MEDIUM
+SMSUsageStats Model,Backend,Usage Tracking,Credit Management,✅ Complete,N/A,✅ Complete,✅ COMPLETE,6 fields with calculations,MEDIUM
