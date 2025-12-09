@@ -52,17 +52,22 @@
 
 <style>
   .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
     height: 100vh;
     background-color: #1e3a8a;
     color: white;
     display: flex;
     flex-direction: column;
     font-family: "Inter", sans-serif;
+    overflow-y: auto;
+    z-index: 1000;
   }
 
   .sidebar-header h4 {
     margin-top: 15px;
-    font-weight: 700;
+    font-weight: 600;
     color: #fff;
   }
 
@@ -77,7 +82,7 @@
     color: white;
     text-decoration: none;
     display: block;
-    padding: 10px 15px;
+    padding: 08px 10px;
     border-radius: 8px;
     margin: 2px 5px;
     transition: background 0.25s;
