@@ -73,6 +73,7 @@
                       <th>Role</th>
                       <th>Status</th>
                       <th>Last Login</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody id="usersTableBody">
@@ -102,10 +103,21 @@
                             {% endif %}
                           </td>
                           <td>{{ user.last_login|date:"d M Y, H:i"|default:"Never" }}</td>
+                          <td>
+                            {% if request.user.role == 'admin' %}
+                              {% if user.is_active %}
+                                <button class="btn btn-sm btn-danger userActionBtn" data-user-id="{{ user.id }}" data-action="deactivate">Deactivate</button>
+                              {% else %}
+                                <button class="btn btn-sm btn-success userActionBtn" data-user-id="{{ user.id }}" data-action="activate">Activate</button>
+                              {% endif %}
+                            {% else %}
+                              -
+                            {% endif %}
+                          </td>
                         </tr>
                       {% endfor %}
                     {% else %}
-                      <tr><td colspan="5" class="text-center text-muted py-4">No users found.</td></tr>
+                      <tr><td colspan="6" class="text-center text-muted py-4">No users found.</td></tr>
                     {% endif %}
                   </tbody>
                 </table>
@@ -264,6 +276,50 @@
       } finally {
         createUserBtn.disabled = false;
         createUserSpinner.classList.add('d-none');
+      }
+    });
+
+    // User action handler (activate / deactivate / delete) delegated
+    document.getElementById('usersTableBody').addEventListener('click', async (e) => {
+      if (!e.target.classList.contains('userActionBtn')) return;
+      const btn = e.target;
+      const userId = btn.getAttribute('data-user-id');
+      const action = btn.getAttribute('data-action') || 'deactivate';
+
+      if (!userId) return;
+
+      let confirmMsg = '';
+      if (action === 'activate') confirmMsg = 'Activate this user? They will be able to sign in immediately.';
+      else if (action === 'deactivate') confirmMsg = 'Deactivate this user? They will not be able to sign in.';
+      else confirmMsg = 'Proceed with this action?';
+
+      if (!confirm(confirmMsg)) return;
+
+      btn.disabled = true;
+
+      try {
+        const resp = await fetch('/api/users/delete/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+          },
+          body: JSON.stringify({ user_id: userId, action: action })
+        });
+
+        const result = await resp.json();
+
+        if (resp.ok && result.success) {
+          alert('✅ ' + (result.message || 'Action completed'));
+          location.reload();
+        } else {
+          alert('❌ Error: ' + (result.error || result.message || 'Failed to perform action'));
+        }
+      } catch (err) {
+        console.error('User action error', err);
+        alert('❌ Network error. Please try again.');
+      } finally {
+        btn.disabled = false;
       }
     });
   </script>

@@ -500,6 +500,67 @@ def create_user_view(request):
 
 
 @login_required
+def delete_user_view(request):
+    """Delete or deactivate a user (admin only). POST JSON: { user_id: int, hard: bool }
+    By default performs a soft-deactivate (is_active=False). If 'hard'==true, performs permanent delete.
+    """
+    if request.method != 'POST':
+        return JsonResponse({"error": "POST only"}, status=405)
+
+    if request.user.role != 'admin':
+        return JsonResponse({"error": "Permission denied. Admin access required."}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        user_id = data.get('user_id')
+        hard = bool(data.get('hard', False))
+        action = data.get('action', '').lower()  # 'activate' | 'deactivate' | 'delete'
+
+        if not user_id:
+            return JsonResponse({"error": "user_id is required"}, status=400)
+
+        # Prevent deleting or modifying self
+        if int(user_id) == int(request.user.id):
+            return JsonResponse({"error": "You cannot modify your own account"}, status=400)
+
+        try:
+            target = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return JsonResponse({"error": "User not found"}, status=404)
+
+        # Explicit action handling
+        if action == 'activate':
+            target.is_active = True
+            target.save()
+            logger.info(f"User {target.email} (id={user_id}) activated by {request.user.email}")
+            return JsonResponse({"success": True, "message": "User activated"})
+
+        if action == 'deactivate':
+            target.is_active = False
+            target.save()
+            logger.info(f"User {target.email} (id={user_id}) deactivated by {request.user.email}")
+            return JsonResponse({"success": True, "message": "User deactivated"})
+
+        # fallback: if hard flag or action == 'delete' perform permanent delete
+        if hard or action == 'delete':
+            target.delete()
+            logger.info(f"User {target.email} (id={user_id}) permanently deleted by {request.user.email}")
+            return JsonResponse({"success": True, "message": "User permanently deleted"})
+
+        # Default behavior: soft-deactivate
+        target.is_active = False
+        target.save()
+        logger.info(f"User {target.email} (id={user_id}) deactivated by {request.user.email}")
+        return JsonResponse({"success": True, "message": "User deactivated"})
+
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+    except Exception as e:
+        logger.exception("Error deleting user")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
 def get_settings(request):
     """Get user settings"""
     if request.method != 'GET':

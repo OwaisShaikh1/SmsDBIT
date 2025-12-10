@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     get_contacts, sidebar_view, dashboard_page, get_groups, get_templates, 
     send_sms, get_campaigns, create_campaign, create_group, reports_dashboard, 
-    reports_generate, create_user_view, get_settings, update_general_settings,
+    reports_generate, create_user_view, delete_user_view, get_settings, update_general_settings,
     update_sms_settings, test_sms_settings, get_send_page_stats
 )
 
@@ -19,6 +19,7 @@ urlpatterns = [
     path("campaigns/", get_campaigns, name="api_get_campaigns"),
     path("campaigns/new/", create_campaign, name="api_create_campaign"),
     path("users/create/", create_user_view, name="api_create_user"),
+    path("users/delete/", delete_user_view, name="api_delete_user"),
     path("settings/", get_settings, name="api_get_settings"),
     path("settings/general/", update_general_settings, name="api_update_general_settings"),
     path("settings/sms/", update_sms_settings, name="api_update_sms_settings"),

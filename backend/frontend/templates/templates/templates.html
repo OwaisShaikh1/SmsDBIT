@@ -152,35 +152,52 @@
       const tbody = document.getElementById("templateTableBody");
       tbody.innerHTML = "";
 
-      if (!templates.length) {
+      if (!templates || !templates.length) {
         tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">No templates found.</td></tr>`;
         return;
       }
 
+      // mappings aligned with backend fields
+      const statusMap = { approved: 'success', pending: 'warning', rejected: 'danger' };
+      const categoryMap = { student: 'primary', teacher: 'info', common: 'success' };
+
       templates.forEach(t => {
-        const statusBadge = {
-          approved: 'success',
-          pending: 'warning',
-          draft: 'secondary'
-        }[t.status] || 'secondary';
+        // Use 'title' instead of legacy 'name'
+        const title = t.title || '-';
 
-        const categoryBadge = {
-          academic: 'primary',
-          administrative: 'info',
-          event: 'success',
-          notification: 'warning',
-          reminder: 'danger'
-        }[t.category] || 'secondary';
+        // Category & status badges
+        const cat = t.category || '';
+        const categoryBadge = categoryMap[cat] || 'secondary';
 
-        const variableList = (t.variables || []).map(v => `<span class="variable-tag">{${v}}</span>`).join(" ");
+        const st = t.status || '';
+        const statusBadge = statusMap[st] || 'secondary';
+
+        // Robust variable extraction from 'variable_schema'
+        let vars = [];
+        const schema = t.variable_schema;
+        if (Array.isArray(schema)) {
+          vars = schema.map(v => {
+            if (typeof v === 'string') return v;
+            if (v && (v.name || v.label)) return v.name || v.label;
+            return JSON.stringify(v);
+          });
+        } else if (schema && typeof schema === 'object') {
+          // object form: take keys or stringify
+          const keys = Object.keys(schema);
+          vars = keys.length ? keys : [JSON.stringify(schema)];
+        }
+
+        const variableList = vars.length ? vars.map(v => `<span class="variable-tag">{${escapeHtml(v)}}</span>`).join(" ") : '-';
+
+        const created = new Date(t.created_at || Date.now()).toLocaleDateString();
 
         tbody.innerHTML += `
           <tr>
-            <td>${t.name || '-'}</td>
-            <td><span class="badge bg-${categoryBadge}">${t.category || '-'}</span></td>
-            <td>${variableList || '-'}</td>
-            <td><span class="badge bg-${statusBadge}">${t.status || '-'}</span></td>
-            <td>${new Date(t.created_at || t.created_date || Date.now()).toLocaleDateString()}</td>
+            <td>${escapeHtml(title)}</td>
+            <td><span class="badge bg-${categoryBadge}">${escapeHtml(cat || '-')}</span></td>
+            <td>${variableList}</td>
+            <td><span class="badge bg-${statusBadge}">${escapeHtml(st || '-')}</span></td>
+            <td>${escapeHtml(created)}</td>
           </tr>
         `;
       });
@@ -189,12 +206,30 @@
     function updateStats(templates) {
       const approved = templates.filter(t => t.status === "approved").length;
       const pending = templates.filter(t => t.status === "pending").length;
-      const draft = templates.filter(t => t.status === "draft").length;
+      // backend uses 'rejected' (map to draftCount slot) if present
+      const rejected = templates.filter(t => t.status === "rejected").length;
 
-      document.getElementById("totalTemplates").textContent = templates.length;
+      document.getElementById("totalTemplates").textContent = templates.length || 0;
       document.getElementById("approvedCount").textContent = approved;
       document.getElementById("pendingCount").textContent = pending;
-      document.getElementById("draftCount").textContent = draft;
+      document.getElementById("draftCount").textContent = rejected;
+    }
+
+    // small helper to escape text for safety
+    function escapeHtml(text) {
+      if (text === undefined || text === null) return '';
+      return String(text).replace(/[&<">'`=\/]/g, function (s) {
+        return ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;',
+          '/': '&#x2F;',
+          '`': '&#x60;',
+          '=': '&#x3D;'
+        })[s];
+      });
     }
   </script>
 </body>
