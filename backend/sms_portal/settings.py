@@ -83,7 +83,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'sms_portal',
         'USER': 'root',
-        'PASSWORD': 'owais20!',
+        'PASSWORD': 'Omkar@16905',
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {

@@ -486,25 +486,59 @@ def reports_dashboard(request):
             total_campaigns = Campaign.objects.filter(user=user).count()
             total_users = 1  # Just the teacher themselves
         
-        # Get recent activity (last 30 days)
-        thirty_days_ago = timezone.now() - timedelta(days=30)
-        if user.role == "admin":
-            recent_messages = SMSMessage.objects.filter(
-                created_at__gte=thirty_days_ago
-            ).count()
-        else:
-            recent_messages = SMSMessage.objects.filter(
-                user=user,
-                created_at__gte=thirty_days_ago
-            ).count()
+        # Get recent activity (last 7 days for trends)
+        from datetime import datetime, timedelta
+        today = timezone.now().date()
+        delivery_trends = []
+        
+        for i in range(6, -1, -1):
+            day = today - timedelta(days=i)
+            day_start = timezone.make_aware(datetime.combine(day, datetime.min.time()))
+            day_end = timezone.make_aware(datetime.combine(day, datetime.max.time()))
+            
+            if user.role == "admin":
+                messages = SMSMessage.objects.filter(
+                    created_at__range=[day_start, day_end]
+                )
+            else:
+                messages = SMSMessage.objects.filter(
+                    user=user,
+                    created_at__range=[day_start, day_end]
+                )
+            
+            sent = messages.count()
+            delivered = messages.filter(status='delivered').count()
+            failed = messages.filter(status='failed').count()
+            
+            delivery_trends.append({
+                'date': day.strftime('%Y-%m-%d'),
+                'sent': sent,
+                'delivered': delivered,
+                'failed': failed
+            })
+        
+        # Calculate delivery rate
+        total_sent = sum(d['sent'] for d in delivery_trends)
+        total_delivered = sum(d['delivered'] for d in delivery_trends)
+        delivery_rate = (total_delivered / total_sent * 100) if total_sent > 0 else 0
+        
+        # Get message categories (mock data for now - you can add category field to SMSMessage model)
+        categories = [
+            {'name': 'Academic', 'count': int(total_messages * 0.41), 'percentage': 41.0},
+            {'name': 'Administrative', 'count': int(total_messages * 0.265), 'percentage': 26.5},
+            {'name': 'Events', 'count': int(total_messages * 0.196), 'percentage': 19.6},
+            {'name': 'Emergency', 'count': int(total_messages * 0.129), 'percentage': 12.9}
+        ]
         
         return JsonResponse({
-            "totalMessages": total_messages,
-            "totalCampaigns": total_campaigns,
-            "totalUsers": total_users,
-            "recentMessages": recent_messages,
-            "deliveryRate": 95.2,  # Mock data - you can calculate this from actual data
-            "engagementRate": 78.5  # Mock data
+            "stats": {
+                "total_sent": total_sent,
+                "delivery_rate": round(delivery_rate, 1),
+                "failed_count": sum(d['failed'] for d in delivery_trends),
+                "active_users": total_users
+            },
+            "delivery_trends": delivery_trends,
+            "categories": categories
         })
         
     except Exception as e:
@@ -522,17 +556,25 @@ def reports_generate(request):
         end_date = request.GET.get('end')
         
         # Calculate date range
-        if date_range == 'last30':
-            start_dt = timezone.now() - timedelta(days=30)
+        if date_range == 'today':
+            start_dt = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
             end_dt = timezone.now()
-        elif date_range == 'last7':
+        elif date_range == 'yesterday':
+            yesterday = timezone.now() - timedelta(days=1)
+            start_dt = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_dt = yesterday.replace(hour=23, minute=59, second=59, microsecond=999999)
+        elif date_range == 'week':
             start_dt = timezone.now() - timedelta(days=7)
             end_dt = timezone.now()
-        elif date_range == 'custom' and start_date and end_date:
-            start_dt = datetime.strptime(start_date, '%Y-%m-%d')
-            end_dt = datetime.strptime(end_date, '%Y-%m-%d')
-        else:
+        elif date_range == 'month':
             start_dt = timezone.now() - timedelta(days=30)
+            end_dt = timezone.now()
+        elif date_range == 'custom' and start_date and end_date:
+            start_dt = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
+            end_dt = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d').replace(hour=23, minute=59, second=59))
+        else:
+            # Default to last 7 days
+            start_dt = timezone.now() - timedelta(days=7)
             end_dt = timezone.now()
         
         # Filter messages based on user role
@@ -546,24 +588,54 @@ def reports_generate(request):
                 created_at__range=[start_dt, end_dt]
             )
         
-        # Generate mock report data (you can replace with actual calculations)
-        if report_type == 'delivery':
-            data = {
-                "labels": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-                "delivered": [120, 190, 300, 500, 200, 300, 450],
-                "failed": [10, 15, 20, 25, 15, 20, 30]
-            }
-        elif report_type == 'usage':
-            data = {
-                "labels": ["Week 1", "Week 2", "Week 3", "Week 4"],
-                "sent": [1200, 1900, 3000, 2200],
-                "delivered": [1150, 1820, 2850, 2100]
-            }
-        else:
-            data = {
-                "message": "Report type not supported yet",
-                "available_types": ["delivery", "usage"]
-            }
+        # Generate report data based on actual database records
+        from datetime import datetime, timedelta
+        today = timezone.now().date()
+        delivery_trends = []
+        
+        # Get data for last 7 days
+        for i in range(6, -1, -1):
+            day = today - timedelta(days=i)
+            day_start = timezone.make_aware(datetime.combine(day, datetime.min.time()))
+            day_end = timezone.make_aware(datetime.combine(day, datetime.max.time()))
+            
+            messages = messages_qs.filter(created_at__range=[day_start, day_end])
+            sent = messages.count()
+            delivered = messages.filter(status='delivered').count()
+            failed = messages.filter(status='failed').count()
+            
+            delivery_trends.append({
+                'date': day.strftime('%Y-%m-%d'),
+                'sent': sent,
+                'delivered': delivered,
+                'failed': failed
+            })
+        
+        # Calculate stats
+        total_sent = sum(d['sent'] for d in delivery_trends)
+        total_delivered = sum(d['delivered'] for d in delivery_trends)
+        total_failed = sum(d['failed'] for d in delivery_trends)
+        delivery_rate = (total_delivered / total_sent * 100) if total_sent > 0 else 0
+        
+        # Get categories (mock for now)
+        categories = [
+            {'name': 'Academic', 'count': int(total_sent * 0.41), 'percentage': 41.0},
+            {'name': 'Administrative', 'count': int(total_sent * 0.265), 'percentage': 26.5},
+            {'name': 'Events', 'count': int(total_sent * 0.196), 'percentage': 19.6},
+            {'name': 'Emergency', 'count': int(total_sent * 0.129), 'percentage': 12.9}
+        ]
+        
+        data = {
+            "stats": {
+                "total_sent": total_sent,
+                "delivery_rate": round(delivery_rate, 1),
+                "failed_count": total_failed,
+                "active_users": User.objects.filter(role='teacher').count() if user.role == 'admin' else 1
+            },
+            "delivery_trends": delivery_trends,
+            "categories": categories,
+            "report_type": report_type
+        }
         
         return JsonResponse(data)
         

@@ -166,6 +166,8 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
   
   <script>
     let deliveryChart, categoryChart;
@@ -227,6 +229,12 @@
     }
 
     function initializeCharts() {
+      // Check if data is available
+      if (!reportData.delivery_trends || !reportData.categories) {
+        console.warn('Report data not loaded yet');
+        return;
+      }
+
       // Delivery Trends Chart
       const deliveryCtx = document.getElementById('deliveryChart').getContext('2d');
       deliveryChart = new Chart(deliveryCtx, {
@@ -296,6 +304,30 @@
       });
     }
 
+    function updateCharts() {
+      // Check if charts exist and data is available
+      if (!reportData.delivery_trends || !reportData.categories) {
+        console.warn('Report data not available for charts');
+        return;
+      }
+
+      // Update Delivery Trends Chart
+      if (deliveryChart) {
+        deliveryChart.data.labels = reportData.delivery_trends.map(d => new Date(d.date).toLocaleDateString());
+        deliveryChart.data.datasets[0].data = reportData.delivery_trends.map(d => d.sent);
+        deliveryChart.data.datasets[1].data = reportData.delivery_trends.map(d => d.delivered);
+        deliveryChart.data.datasets[2].data = reportData.delivery_trends.map(d => d.failed);
+        deliveryChart.update();
+      }
+
+      // Update Category Chart
+      if (categoryChart) {
+        categoryChart.data.labels = reportData.categories.map(c => c.name);
+        categoryChart.data.datasets[0].data = reportData.categories.map(c => c.count);
+        categoryChart.update();
+      }
+    }
+
     async function generateReport() {
       const reportType = document.getElementById('reportType').value;
       const dateRange = document.getElementById('dateRange').value;
@@ -321,12 +353,23 @@
         
         if (response.ok) {
           data = await response.json();
+          
+          // Update report data
+          reportData = data;
+          
+          // Update stats
+          updateStats();
+          
+          // Update charts with new data
+          updateCharts();
+          
+          // Render table
+          renderReportTable(generateMockReportData(reportType), reportType);
         } else {
           // Mock data based on report type
-          data = generateMockReportData(reportType);
+          const mockData = generateMockReportData(reportType);
+          renderReportTable(mockData, reportType);
         }
-        
-        renderReportTable(data, reportType);
       } catch (error) {
         console.error('Error generating report:', error);
         const mockData = generateMockReportData(reportType);
@@ -418,37 +461,162 @@
 
     function exportReport(format) {
       const reportType = document.getElementById('reportType').value;
+      const dateRange = document.getElementById('dateRange').value;
       const table = document.getElementById('reportTable');
+      const fileName = `${reportType}_report_${new Date().toISOString().split('T')[0]}`;
+      
+      // Get headers and data
+      const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+      const rows = Array.from(table.querySelectorAll('tbody tr'));
+      const tableData = rows.map(row => 
+        Array.from(row.querySelectorAll('td')).map(td => td.textContent.trim())
+      );
       
       if (format === 'csv') {
-        let csv = '';
+        // Create CSV with proper formatting for Excel
+        let csv = '\uFEFF';  // UTF-8 BOM for Excel compatibility
         
-        // Get headers
-        const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent);
-        csv += headers.join(',') + '\n';
+        // Add headers
+        csv += headers.map(h => `"${h}"`).join(',') + '\n';
         
-        // Get data
-        const rows = Array.from(table.querySelectorAll('tbody tr'));
-        rows.forEach(row => {
-          const cells = Array.from(row.querySelectorAll('td')).map(td => `"${td.textContent}"`);
-          csv += cells.join(',') + '\n';
+        // Add data rows with proper escaping and date formatting
+        tableData.forEach(row => {
+          const formattedRow = row.map((cell, index) => {
+            const cellStr = String(cell);
+            
+            // Check if this is a date/time column by header name or pattern
+            const headerName = headers[index] ? headers[index].toLowerCase() : '';
+            const isDateTimeColumn = headerName.includes('date') || 
+                                     headerName.includes('time') || 
+                                     headerName.includes('activity') ||
+                                     headerName === 'date';
+            
+            // Match various date and datetime patterns
+            const looksLikeDate = cellStr.match(/^\d{1,2}\/\d{1,2}\/\d{4}/) || 
+                                 cellStr.match(/^\d{4}-\d{2}-\d{2}/) ||
+                                 cellStr.match(/^\d{1,2}-\d{1,2}-\d{4}/) ||
+                                 cellStr.match(/^\d{4}\/\d{2}\/\d{2}/) ||
+                                 // Datetime patterns (with time)
+                                 cellStr.match(/\d{1,2}:\d{2}/) ||
+                                 cellStr.match(/\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}/) ||
+                                 cellStr.match(/\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}/);
+            
+            // For date/time fields, use Excel formula format to preserve as text
+            if (isDateTimeColumn || looksLikeDate) {
+              // Use ="datetime" format to force Excel to treat as text
+              return `="${cellStr}"`;
+            }
+            
+            // For other fields, normal escaping
+            const escaped = cellStr.replace(/"/g, '""');
+            return `"${escaped}"`;
+          });
+          csv += formattedRow.join(',') + '\n';
         });
         
         // Download
-        const blob = new Blob([csv], { type: 'text/csv' });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.setAttribute('hidden', '');
         a.setAttribute('href', url);
-        a.setAttribute('download', `${reportType}_report_${new Date().toISOString().split('T')[0]}.csv`);
+        a.setAttribute('download', `${fileName}.csv`);
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
         
-        alert('CSV report exported successfully!');
+        showAlert('CSV report exported successfully!', 'success');
       } else if (format === 'pdf') {
-        alert('PDF export functionality will be implemented with a PDF library like jsPDF');
+        try {
+          // Initialize jsPDF
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF('p', 'mm', 'a4');
+          
+          // Add title
+          doc.setFontSize(18);
+          doc.setFont(undefined, 'bold');
+          const title = `${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report`;
+          doc.text(title, 14, 20);
+          
+          // Add date info
+          doc.setFontSize(10);
+          doc.setFont(undefined, 'normal');
+          const dateText = `Generated on: ${new Date().toLocaleDateString()} | Range: ${dateRange}`;
+          doc.text(dateText, 14, 28);
+          
+          // Add stats summary if available
+          const totalSent = document.getElementById('totalSent')?.textContent || 'N/A';
+          const deliveryRate = document.getElementById('deliveryRate')?.textContent || 'N/A';
+          const failedCount = document.getElementById('failedCount')?.textContent || 'N/A';
+          
+          doc.setFontSize(9);
+          doc.text(`Total Sent: ${totalSent} | Delivery Rate: ${deliveryRate} | Failed: ${failedCount}`, 14, 34);
+          
+          // Add table
+          doc.autoTable({
+            head: [headers],
+            body: tableData,
+            startY: 40,
+            theme: 'grid',
+            styles: {
+              fontSize: 8,
+              cellPadding: 3,
+            },
+            headStyles: {
+              fillColor: [59, 130, 246],
+              textColor: 255,
+              fontStyle: 'bold',
+            },
+            alternateRowStyles: {
+              fillColor: [245, 247, 250],
+            },
+            margin: { left: 14, right: 14 },
+          });
+          
+          // Add footer
+          const pageCount = doc.internal.getNumberOfPages();
+          for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setTextColor(128);
+            doc.text(
+              `Page ${i} of ${pageCount} | SMS Portal - ${new Date().toLocaleDateString()}`,
+              doc.internal.pageSize.width / 2,
+              doc.internal.pageSize.height - 10,
+              { align: 'center' }
+            );
+          }
+          
+          // Save PDF
+          doc.save(`${fileName}.pdf`);
+          showAlert('PDF report exported successfully!', 'success');
+        } catch (error) {
+          console.error('PDF export error:', error);
+          showAlert('Error exporting PDF. Please try again.', 'error');
+        }
       }
+    }
+
+    function showAlert(message, type = 'success') {
+      // Create a Bootstrap-style alert
+      const alertDiv = document.createElement('div');
+      alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show`;
+      alertDiv.style.position = 'fixed';
+      alertDiv.style.top = '20px';
+      alertDiv.style.right = '20px';
+      alertDiv.style.zIndex = '9999';
+      alertDiv.style.minWidth = '300px';
+      alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      `;
+      document.body.appendChild(alertDiv);
+      
+      // Auto remove after 3 seconds
+      setTimeout(() => {
+        alertDiv.remove();
+      }, 3000);
     }
 
     // Event listeners
@@ -469,6 +637,16 @@
           }
         }
       });
+    });
+
+    // Report type change listener
+    document.getElementById('reportType').addEventListener('change', function() {
+      generateReport();
+    });
+
+    // Date range change listener
+    document.getElementById('dateRange').addEventListener('change', function() {
+      generateReport();
     });
 
     // Initialize when page loads
