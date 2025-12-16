@@ -6,3 +6,8 @@ db.sqlite3
 .env
 .vscode/
 .idea/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.class
