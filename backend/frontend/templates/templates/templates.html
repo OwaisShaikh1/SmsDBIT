@@ -26,8 +26,8 @@
     <div class="row">
       <!-- Sidebar -->
       <div class="col-md-2 p-0" id="sidebarContainer">
-        <div id="sidebarLoader" style="height:100vh;background:#1e3a8a;color:white;display:flex;align-items:center;justify-content:center;">
-          <div>Loading navigation...</div>
+        <div id="sidebarLoader" style="position:fixed;top:0;left:0;height:100vh;width:13.5%;background-color:#1e3a8a;color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow-y:auto;z-index:1000;">
+          <div>loading......</div>
         </div>
       </div>
 
@@ -232,5 +232,6 @@
       });
     }
   </script>
-</body>
-</html>
+    <script src="{% static 'js/sidebar_loader.js' %}"></script>
+  </body>
+  </html>

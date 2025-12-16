@@ -457,15 +457,13 @@ class HomeView(FrontendTemplateView):
 # -------------------------
 # Sidebar partial and helpers
 # -------------------------
+from django.views.decorators.cache import cache_page
+from django.views.decorators.vary import vary_on_cookie
+
+@cache_page(60 * 60)      # Cache for 1 hour
+@vary_on_cookie           # Different cache per user session
 def sidebar_view(request):
-    """
-    Return the sidebar partial HTML. This is fetched dynamically by the front-end (common.js).
-    Provide the user's role so the sidebar template can render role-specific links.
-    """
-    ctx = _base_context(request)
-    ctx['role'] = ctx.get('user_role') or 'teacher'
-    # Optionally, you can compute small counts here and pass (groups_count, templates_count, etc.)
-    return render(request, 'includes/sidebar.html', ctx)
+    return render(request, "includes/sidebar.html", {"role": request.user.role})
 
 
 # -------------------------

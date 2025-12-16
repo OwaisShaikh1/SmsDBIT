@@ -3,7 +3,8 @@ from .views import (
     get_contacts, sidebar_view, dashboard_page, get_groups, get_templates, 
     send_sms, get_campaigns, create_campaign, create_group, reports_dashboard, 
     reports_generate, create_user_view, delete_user_view, get_settings, update_general_settings,
-    update_sms_settings, test_sms_settings, get_send_page_stats
+    update_sms_settings, test_sms_settings, get_send_page_stats, get_group_contacts,
+    add_contacts_to_group, import_contacts_excel, delete_contact_from_group
 )
 
 urlpatterns = [
@@ -12,6 +13,10 @@ urlpatterns = [
     path("dashboard/", dashboard_page, name="dashboard_page"),
     path("groups/", get_groups, name="api_groups"),
     path("groups/create/", create_group, name="api_create_group"),
+    path("groups/<int:group_id>/contacts/", get_group_contacts, name="api_group_contacts"),
+    path("groups/<int:group_id>/contacts/add/", add_contacts_to_group, name="api_add_contacts"),
+    path("groups/<int:group_id>/contacts/import/", import_contacts_excel, name="api_import_contacts_excel"),
+    path("contacts/<int:contact_id>/delete/", delete_contact_from_group, name="api_delete_contact"),
     path("templates/", get_templates, name="api_templates"),
     path("reports/dashboard/", reports_dashboard, name="api_reports_dashboard"),
     path("reports/generate/", reports_generate, name="api_reports_generate"),

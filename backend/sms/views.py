@@ -159,7 +159,12 @@ def dashboard_page(request):
 # -------------------------------------------------------------------------
 # ✅ SIDEBAR HTML PARTIAL (used by fetch('/sidebar/'))
 # -------------------------------------------------------------------------
+from django.views.decorators.cache import cache_page
+from django.views.decorators.vary import vary_on_cookie
+
 @login_required
+@vary_on_cookie           # Different cache per user session
+@cache_page(60 * 60)      # Cache for 1 hour
 def sidebar_view(request):
     """Sidebar partial HTML, loaded dynamically into each page."""
     role = getattr(request.user, 'role', 'teacher')
@@ -192,9 +197,25 @@ def get_groups(request):
     elif user.assigned_class:
         groups = Group.objects.filter(class_dept=user.assigned_class)
     else:
-        groups = Group.objects.none()
+        # Teachers see their own groups
+        groups = Group.objects.filter(teacher=user)
 
-    return JsonResponse(list(groups.values()), safe=False)
+    # Include contact count in response
+    groups_data = []
+    for g in groups:
+        groups_data.append({
+            'id': g.id,
+            'name': g.name,
+            'class_dept': g.class_dept,
+            'description': g.description,
+            'created_at': g.created_at.isoformat(),
+            'teacher_id': g.teacher.id,
+            'teacher_name': g.teacher.username,
+            'contacts_count': g.contacts.count(),
+            'is_active': True  # Add if you have this field
+        })
+
+    return JsonResponse(groups_data, safe=False)
 
 
 @login_required
@@ -217,17 +238,16 @@ def create_group(request):
         if not category:
             return JsonResponse({"error": "Category is required"}, status=400)
             
-        # Check if group with same name already exists
-        if Group.objects.filter(name=name, user=request.user).exists():
+        # Check if group with same name already exists for this teacher
+        if Group.objects.filter(name=name, teacher=request.user).exists():
             return JsonResponse({"error": "Group with this name already exists"}, status=400)
         
         # Create the group
         group = Group.objects.create(
             name=name,
-            category=category,
+            class_dept=category,  # Store category in class_dept
             description=description,
-            user=request.user,
-            is_active=True
+            teacher=request.user
         )
         
         return JsonResponse({
@@ -236,16 +256,216 @@ def create_group(request):
             "group": {
                 "id": group.id,
                 "name": group.name,
-                "category": group.category,
+                "class_dept": group.class_dept,
                 "description": group.description,
                 "contacts": 0,  # New group starts with 0 contacts
                 "created_at": group.created_at.isoformat() if hasattr(group, 'created_at') else None,
-                "is_active": group.is_active
             }
         })
         
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid JSON data"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def get_group_contacts(request, group_id):
+    """Get all contacts in a specific group"""
+    try:
+        group = Group.objects.get(id=group_id)
+        
+        # Check permission
+        if request.user.role != 'admin' and group.teacher != request.user:
+            return JsonResponse({"error": "Permission denied"}, status=403)
+        
+        contacts = StudentContact.objects.filter(class_dept=group)
+        contacts_data = [{
+            'id': c.id,
+            'name': c.name,
+            'phone_number': c.phone_number,
+            'meta': c.meta or {},
+            'created_at': c.created_at.isoformat()
+        } for c in contacts]
+        
+        return JsonResponse({
+            'group_id': group.id,
+            'group_name': group.name,
+            'contacts': contacts_data
+        })
+    except Group.DoesNotExist:
+        return JsonResponse({"error": "Group not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def add_contacts_to_group(request, group_id):
+    """Add contacts to a group (manual or from another group)"""
+    if request.method != 'POST':
+        return JsonResponse({"error": "POST only"}, status=405)
+    
+    try:
+        group = Group.objects.get(id=group_id)
+        
+        # Check permission
+        if request.user.role != 'admin' and group.teacher != request.user:
+            return JsonResponse({"error": "Permission denied"}, status=403)
+        
+        data = json.loads(request.body)
+        contacts_data = data.get('contacts', [])
+        source_group_id = data.get('source_group_id')
+        
+        added_count = 0
+        errors = []
+        
+        # If copying from another group
+        if source_group_id:
+            try:
+                source_group = Group.objects.get(id=source_group_id)
+                source_contacts = StudentContact.objects.filter(class_dept=source_group)
+                
+                for contact in source_contacts:
+                    try:
+                        StudentContact.objects.create(
+                            name=contact.name,
+                            phone_number=contact.phone_number,
+                            class_dept=group,
+                            meta=contact.meta
+                        )
+                        added_count += 1
+                    except Exception as e:
+                        errors.append(f"{contact.name}: {str(e)}")
+            except Group.DoesNotExist:
+                return JsonResponse({"error": "Source group not found"}, status=404)
+        
+        # Add individual contacts
+        for contact_data in contacts_data:
+            name = contact_data.get('name', '').strip()
+            phone = contact_data.get('phone_number', '').strip()
+            
+            if not name or not phone:
+                errors.append(f"Missing name or phone for: {name or phone}")
+                continue
+            
+            try:
+                StudentContact.objects.create(
+                    name=name,
+                    phone_number=phone,
+                    class_dept=group,
+                    meta=contact_data.get('meta', {})
+                )
+                added_count += 1
+            except Exception as e:
+                errors.append(f"{name}: {str(e)}")
+        
+        return JsonResponse({
+            "success": True,
+            "message": f"Added {added_count} contacts",
+            "added_count": added_count,
+            "errors": errors
+        })
+        
+    except Group.DoesNotExist:
+        return JsonResponse({"error": "Group not found"}, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def import_contacts_excel(request, group_id):
+    """Import contacts from Excel file"""
+    if request.method != 'POST':
+        return JsonResponse({"error": "POST only"}, status=405)
+    
+    try:
+        import pandas as pd
+        from io import BytesIO
+        
+        group = Group.objects.get(id=group_id)
+        
+        # Check permission
+        if request.user.role != 'admin' and group.teacher != request.user:
+            return JsonResponse({"error": "Permission denied"}, status=403)
+        
+        if 'file' not in request.FILES:
+            return JsonResponse({"error": "No file uploaded"}, status=400)
+        
+        excel_file = request.FILES['file']
+        
+        # Read Excel file
+        df = pd.read_excel(BytesIO(excel_file.read()))
+        
+        # Expected columns: name, phone_number (or phone)
+        if 'name' not in df.columns or ('phone_number' not in df.columns and 'phone' not in df.columns):
+            return JsonResponse({
+                "error": "Excel must have 'name' and 'phone_number' (or 'phone') columns"
+            }, status=400)
+        
+        phone_col = 'phone_number' if 'phone_number' in df.columns else 'phone'
+        
+        added_count = 0
+        errors = []
+        
+        for index, row in df.iterrows():
+            name = str(row.get('name', '')).strip()
+            phone = str(row.get(phone_col, '')).strip()
+            
+            if not name or not phone or phone == 'nan':
+                errors.append(f"Row {index + 2}: Missing name or phone")
+                continue
+            
+            try:
+                StudentContact.objects.create(
+                    name=name,
+                    phone_number=phone,
+                    class_dept=group,
+                    meta={}
+                )
+                added_count += 1
+            except Exception as e:
+                errors.append(f"Row {index + 2} ({name}): {str(e)}")
+        
+        return JsonResponse({
+            "success": True,
+            "message": f"Imported {added_count} contacts from Excel",
+            "added_count": added_count,
+            "errors": errors[:10]  # Limit error messages
+        })
+        
+    except Group.DoesNotExist:
+        return JsonResponse({"error": "Group not found"}, status=404)
+    except ImportError:
+        return JsonResponse({"error": "pandas library not installed. Run: pip install pandas openpyxl"}, status=500)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def delete_contact_from_group(request, contact_id):
+    """Delete a contact from a group"""
+    if request.method != 'POST':
+        return JsonResponse({"error": "POST only"}, status=405)
+    
+    try:
+        contact = StudentContact.objects.get(id=contact_id)
+        group = contact.class_dept
+        
+        # Check permission
+        if request.user.role != 'admin' and group.teacher != request.user:
+            return JsonResponse({"error": "Permission denied"}, status=403)
+        
+        contact.delete()
+        
+        return JsonResponse({
+            "success": True,
+            "message": "Contact deleted successfully"
+        })
+        
+    except StudentContact.DoesNotExist:
+        return JsonResponse({"error": "Contact not found"}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
 

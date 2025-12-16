@@ -33,8 +33,8 @@
         <noscript>
           {% include 'includes/sidebar.html' with role=request.user.role %}
         </noscript>
-        <div id="sidebarLoader" style="height:100vh;background:#1e3a8a;color:white;display:flex;align-items:center;justify-content:center;">
-          <div>Loading navigation...</div>
+        <div id="sidebarLoader" style="position:fixed;top:0;left:0;height:100vh;width:13.5%;background-color:#1e3a8a;color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow-y:auto;z-index:1000;">
+          <div>loading......</div>
         </div>
       </div>
 
@@ -50,13 +50,7 @@
           </div>
           <div class="text-end">
             <div class="small-muted">Signed in as</div>
-            <div><strong>{{ request.user.email }}</strong></div>
-          </div>
-        </div>
-
-        <!-- Main Content -->
-        <div class="container mt-4">
-          <!-- Page Content -->
+        <script src="{% static 'js/sidebar_loader.js' %}"></script>
           <div class="row g-3 mb-4">
             <div class="col-md-12">
               <div class="card p-4">
@@ -128,16 +122,6 @@
     </div>
   </div>
 
-  <!-- Sidebar Load Script -->
-  <script>
-    const sidebarContainer = document.getElementById('sidebarContainer');
-    fetch('/sidebar/')
-      .then(resp => resp.text())
-      .then(html => { sidebarContainer.innerHTML = html; })
-      .catch(err => {
-        console.error('Sidebar load failed:', err);
-        sidebarContainer.innerHTML = "<div class='p-3 text-white bg-danger'>Sidebar failed to load.</div>";
-      });
-  </script>
+  <script src="{% static 'js/sidebar_loader.js' %}"></script>
 </body>
 </html>
