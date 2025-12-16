@@ -395,22 +395,53 @@ def import_contacts_excel(request, group_id):
         
         excel_file = request.FILES['file']
         
-        # Read Excel file
-        df = pd.read_excel(BytesIO(excel_file.read()))
+        # Read Excel file - first read without header to find the header row
+        df_raw = pd.read_excel(BytesIO(excel_file.read()), header=None)
         
-        # Expected columns: name, phone_number (or phone)
-        if 'name' not in df.columns or ('phone_number' not in df.columns and 'phone' not in df.columns):
+        # Find the header row (row that contains "name" and "phone" keywords)
+        header_row = None
+        name_col_idx = None
+        phone_col_idx = None
+        
+        for row_idx in range(min(20, len(df_raw))):  # Check first 20 rows
+            row_values = df_raw.iloc[row_idx].astype(str).str.lower().str.strip()
+            
+            # Look for name column
+            name_patterns = ['name', 'student', 'contact', 'full']
+            for col_idx, val in enumerate(row_values):
+                if any(pattern in val for pattern in name_patterns):
+                    name_col_idx = col_idx
+                    break
+            
+            # Look for phone column
+            phone_patterns = ['phone', 'mobile', 'number', 'contact']
+            for col_idx, val in enumerate(row_values):
+                if any(pattern in val for pattern in phone_patterns) and col_idx != name_col_idx:
+                    phone_col_idx = col_idx
+                    break
+            
+            if name_col_idx is not None and phone_col_idx is not None:
+                header_row = row_idx
+                break
+        
+        if header_row is None:
             return JsonResponse({
-                "error": "Excel must have 'name' and 'phone_number' (or 'phone') columns"
+                "error": "Could not find header row with name and phone columns. Please ensure your Excel has column headers."
             }, status=400)
         
-        phone_col = 'phone_number' if 'phone_number' in df.columns else 'phone'
+        # Re-read the Excel file with the correct header row
+        excel_file.seek(0)  # Reset file pointer
+        df = pd.read_excel(BytesIO(excel_file.read()), header=header_row)
+        
+        # Get the actual column names
+        name_col = df.columns[name_col_idx]
+        phone_col = df.columns[phone_col_idx]
         
         added_count = 0
         errors = []
         
         for index, row in df.iterrows():
-            name = str(row.get('name', '')).strip()
+            name = str(row.get(name_col, '')).strip()
             phone = str(row.get(phone_col, '')).strip()
             
             if not name or not phone or phone == 'nan':
@@ -444,10 +475,11 @@ def import_contacts_excel(request, group_id):
 
 
 @login_required
+@login_required
 def delete_contact_from_group(request, contact_id):
     """Delete a contact from a group"""
-    if request.method != 'POST':
-        return JsonResponse({"error": "POST only"}, status=405)
+    if request.method != 'DELETE':
+        return JsonResponse({"error": "DELETE method required"}, status=405)
     
     try:
         contact = StudentContact.objects.get(id=contact_id)
@@ -467,6 +499,7 @@ def delete_contact_from_group(request, contact_id):
     except StudentContact.DoesNotExist:
         return JsonResponse({"error": "Contact not found"}, status=404)
     except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
         return JsonResponse({"error": str(e)}, status=500)
 
 

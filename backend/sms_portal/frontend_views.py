@@ -389,6 +389,8 @@ def activity_page(request):
     return render(request, 'dashboard/activity.html', {'activities': activities})
 
 
+# sms_portal/frontend_views.py
+
 from django.contrib.auth import authenticate, login
 from django.contrib import messages
 

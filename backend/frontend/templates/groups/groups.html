@@ -211,7 +211,13 @@
             <!-- Excel Import Tab -->
             <div class="tab-pane fade" id="excel-import" role="tabpanel">
               <div class="alert alert-info">
-                <strong>Excel Format:</strong> Your Excel file should have two columns: <code>name</code> and <code>phone_number</code> (or <code>phone</code>)
+                <strong>Excel Format:</strong> Your Excel file should have columns for name and phone number.<br>
+                Supported column names:
+                <ul class="mb-0 mt-2">
+                  <li><strong>Name:</strong> name, student_name, contact_name, full_name, or any column containing "name"</li>
+                  <li><strong>Phone:</strong> phone, phone_number, mobile, mobile_number, contact, contact_number, number, or any column containing these keywords</li>
+                </ul>
+                <small class="text-muted">Note: Column names are case-insensitive and the columns can be in any order.</small>
               </div>
               <form id="excelImportForm">
                 <div class="mb-3">
