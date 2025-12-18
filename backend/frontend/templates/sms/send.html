@@ -248,9 +248,12 @@ document.addEventListener("DOMContentLoaded", () => {
 async function loadContactsForGroup() {
   const groupId = document.getElementById("groupSelect").value;
   if (!groupId) return;
-  const res = await fetch(`${window.API_BASE}/contacts/?group=${groupId}`, { credentials: 'include' });
+  const res = await fetch(`${window.API_BASE}/groups/${groupId}/contacts/`, { credentials: 'include' });
   if (res.ok) {
-    contacts = await res.json();
+    const data = await res.json();
+    // API returns { contacts: [...] } not a direct array
+    contacts = data.contacts || data || [];
+    console.log('Loaded contacts:', contacts);
     renderPreview();
   }
 }
@@ -319,7 +322,7 @@ function renderPreview() {
     return;
   }
 
-  if (!contacts.length) {
+  if (contacts.length==0) {
     tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">No contacts available</td></tr>`;
     return;
   }

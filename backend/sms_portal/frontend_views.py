@@ -1,27 +1,33 @@
-# sms_portal/frontend_views.py
+"""
+Frontend Views for SMS Portal
+Handles all HTML template rendering for the SMS management system.
+All API logic should be in sms/views.py
+"""
+
+import logging
+from datetime import datetime
+from collections import defaultdict
+
 from django.shortcuts import render, redirect
 from django.views.generic import TemplateView
 from django.template.exceptions import TemplateDoesNotExist
+from django.template.loader import render_to_string
 from django.conf import settings
-from django.utils import timezone
-from django.http import HttpResponseNotFound, JsonResponse
-from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
-from django.utils.decorators import method_decorator
-from .auth_utils import AuthMixin, get_user_from_request
-import json
-import logging
-from datetime import date, datetime
-from calendar import monthrange
-
-logger = logging.getLogger(__name__)
-
-from django.views.generic import TemplateView
+from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import get_user_model
+from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
 from django.db.models import Sum, Count, Q
-from django.db.models.functions import TruncMonth
+from django.http import HttpResponseNotFound, HttpResponse
 from django.utils import timezone
-from django.conf import settings
+from django.utils.decorators import method_decorator
 from django.views import View
+from django.views.decorators.cache import cache_page
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.vary import vary_on_cookie
 
+from .auth_utils import AuthMixin, get_user_from_request
 from sms.models import (
     SMSUsageStats,
     SMSMessage,
@@ -32,7 +38,10 @@ from sms.models import (
     SMSRecipient,
     Campaign,
 )
-from sms.services import MySMSMantraService, AdminAnalyticsService
+from sms.services import AdminAnalyticsService
+
+User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 def _base_context(request):
@@ -161,120 +170,17 @@ def get_monthly_stats(messages):
         'failed': [stats[k]['failed'] for k in sorted_labels],
     }
 
-from sms.models import SMSMessage, Template, Campaign  # ✅ import Campaign
+from sms.models import SMSMessage, Template, Campaign
 from django.utils import timezone
 
 
 class SendSMSView(FrontendTemplateView):
+    """Frontend view for SMS sending page - renders template only.
+    
+    All SMS sending logic is handled by the API endpoint in sms/views.py
+    """
     template_name = 'sms/send.html'
     require_auth = True
-
-    def post(self, request, *args, **kwargs):
-        try:
-            data = json.loads(request.body)
-            template_id = data.get('template_id')
-            recipients = data.get('recipients', [])
-            message = data.get('message', '')
-            sender_id = data.get('sender_id', 'BOMBYS')
-            campaign_id = data.get('campaign_id')
-
-            if not recipients:
-                return JsonResponse({'success': False, 'error': 'No recipients provided'}, status=400)
-
-            # 🧩 Find or create campaign
-            campaign = None
-            if campaign_id and str(campaign_id).isdigit():
-                try:
-                    campaign = Campaign.objects.get(id=int(campaign_id), user=request.user)
-                except Campaign.DoesNotExist:
-                    pass
-
-            if not campaign:
-                campaign = Campaign.objects.create(
-                    user=request.user,
-                    title=f"Campaign {timezone.now().strftime('%d-%b %H:%M')}",
-                    status="active"
-                )
-
-            # 📨 Create master SMSMessage record
-            sms_message = SMSMessage.objects.create(
-                user=request.user,
-                campaign=campaign,
-                message_text=message,
-                recipients=recipients,
-                total_recipients=len(recipients),
-                status='pending'
-            )
-
-            logger.info(f"Sending SMS to {len(recipients)} recipients under campaign {campaign.title}")
-
-            # 🔹 Send SMS via MySMSMantra API
-            service = MySMSMantraService(user=request.user)
-            result = service.send_sms_sync(
-                sms_message_id=sms_message.id,
-                message_text=message,
-                recipients_list=recipients,
-                sender_id=sender_id
-            )
-
-            if not result.get("success"):
-                sms_message.status = "failed"
-                sms_message.save()
-                return JsonResponse({'success': False, 'error': result.get('error')}, status=500)
-
-            # 🧾 Parse API response and save recipient details
-            api_data = result.get("api_response", {}).get("Data", [])
-            sent_count = 0
-            failed_count = 0
-
-            for entry in api_data:
-                phone = entry.get("MobileNumber")
-                api_msg_id = entry.get("MessageId")
-                error_code = entry.get("MessageErrorCode")
-                status = "sent" if error_code == 0 else "failed"
-
-                # ✅ Use api_message_id instead of message_id (UUID-safe)
-                SMSRecipient.objects.create(
-                    message=sms_message,
-                    phone_number=phone,
-                    api_message_id=api_msg_id,
-                    status=status,
-                    submit_time=timezone.now() if status == "sent" else None,
-                    error_description=entry.get("MessageErrorDescription")
-                )
-
-                if status == "sent":
-                    sent_count += 1
-                else:
-                    failed_count += 1
-
-            # ✅ Update SMSMessage
-            sms_message.status = "sent" if sent_count > 0 else "failed"
-            sms_message.sent_at = timezone.now()
-            sms_message.successful_deliveries = sent_count
-            sms_message.failed_deliveries = failed_count
-            sms_message.save()
-
-            # ✅ Auto-calculate Campaign statistics using update_stats()
-            campaign.update_stats()
-            campaign.status = "completed" if campaign.total_failed == 0 else "partial"
-            campaign.save()
-
-            logger.info(f"✅ SMS campaign '{campaign.title}' results → Sent={sent_count}, Failed={failed_count}")
-
-            return JsonResponse({
-                'success': True,
-                'campaign_id': campaign.id,
-                'message_id': sms_message.id,
-                'delivered': sent_count,
-                'failed': failed_count,
-                'recipients': len(api_data),
-                'api_response': api_data,
-            })
-
-        except Exception as e:
-            logger.exception("Error in SendSMSView")
-            return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 class MessageHistoryView(FrontendTemplateView):
@@ -330,12 +236,6 @@ def sender_ids_view(request):
     context = _base_context(request)
     return render(request, 'sender_ids/sender_ids.html', context)
 
-
-from django.shortcuts import render
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth import get_user_model
-
-User = get_user_model()
 
 @login_required(login_url='/login/')
 def manage_users(request):
@@ -396,11 +296,6 @@ def activity_page(request):
     return render(request, 'dashboard/activity.html', context)
 
 
-# sms_portal/frontend_views.py
-
-from django.contrib.auth import authenticate, login
-from django.contrib import messages
-
 class LoginView(View):
     template_name = 'auth/login.html'
 
@@ -424,13 +319,6 @@ class LoginView(View):
             messages.error(request, "Invalid email or password.")
             return render(request, self.template_name, {'error': True})
 
-# frontend_views.py
-from django.contrib.auth import logout
-from django.shortcuts import redirect
-from django.contrib import messages
-from django.core.cache import cache
-from django.template.loader import render_to_string
-from django.http import HttpResponse
 
 def LogoutView(request):
     if request.method == 'POST':
@@ -481,11 +369,8 @@ class HomeView(FrontendTemplateView):
 
 
 # -------------------------
-# Sidebar partial and helpers
+# Sidebar partial
 # -------------------------
-from django.views.decorators.cache import cache_page
-from django.views.decorators.vary import vary_on_cookie
-
 @ensure_csrf_cookie  # Ensure CSRF cookie is set for forms in sidebar
 @vary_on_cookie      # Different cache per user session
 def sidebar_view(request):

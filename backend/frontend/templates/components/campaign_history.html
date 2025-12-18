@@ -61,11 +61,18 @@
                     {% if camp.messages.exists %}
                       {% for msg in camp.messages.all|dictsortreversed:"created_at" %}
                         <div class="mb-4 border rounded p-3 bg-white shadow-sm">
-                          <div class="fw-semibold">
-                            📨 Message ({{ msg.total_recipients }} recipients)
-                            <span class="text-muted small">
-                              — {{ msg.sent_at|default:msg.created_at|date:"d M Y, H:i" }}
-                            </span>
+                          <div class="d-flex justify-content-between align-items-center">
+                            <div class="fw-semibold">
+                              📨 Message ({{ msg.total_recipients }} recipients)
+                              <span class="text-muted small">
+                                — {{ msg.sent_at|default:msg.created_at|date:"d M Y, H:i" }}
+                              </span>
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary" 
+                                    onclick="refreshMessageStatus({{ msg.id }})"
+                                    id="refresh-btn-{{ msg.id }}">
+                              <i class="fa fa-sync"></i> Refresh Status
+                            </button>
                           </div>
                           <div class="border rounded p-2 mt-2 bg-light">
                             {{ msg.message_text }}
@@ -136,6 +143,48 @@
     </div>
   </div>
 </div>
+
+<script>
+async function refreshMessageStatus(messageId) {
+  const btn = document.getElementById(`refresh-btn-${messageId}`);
+  const originalHTML = btn.innerHTML;
+  
+  // Disable button and show loading
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Updating...';
+  
+  try {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                      document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    
+    const response = await fetch(`/api/sms/${messageId}/refresh/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken
+      }
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok && result.success) {
+      alert(`✅ Status updated!\n\nSuccessful: ${result.successful}\nFailed: ${result.failed}`);
+      // Reload page to show updated data
+      window.location.reload();
+    } else {
+      alert(`❌ Failed to update status: ${result.error || 'Unknown error'}`);
+      btn.disabled = false;
+      btn.innerHTML = originalHTML;
+    }
+  } catch (error) {
+    console.error('Error refreshing status:', error);
+    alert(`❌ Network error: ${error.message}`);
+    btn.disabled = false;
+    btn.innerHTML = originalHTML;
+  }
+}
+</script>
 
 <!-- Required: Bootstrap JS Bundle for collapse functionality -->
 <!-- Include in parent template: <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script> -->

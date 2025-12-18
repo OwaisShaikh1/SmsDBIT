@@ -173,7 +173,7 @@ else:
 
 # MySMSMantra / provider config (use env vars)
 MYSMSMANTRA_CONFIG = {
-    'API_URL': config('MYSMSMANTRA_API_URL', default='https://api.mylogin.co.in/api/v2/SendSMS'),
+    'API_URL': config('MYSMSMANTRA_API_URL', default='https://api.mylogin.co.in/api/v2'),
     'API_KEY': config('MYSMSMANTRA_API_KEY', default=''),
     'CLIENT_ID': config('MYSMSMANTRA_CLIENT_ID', default=''),
     'SENDER_ID': config('MYSMSMANTRA_SENDER_ID', default='DBITMS'),

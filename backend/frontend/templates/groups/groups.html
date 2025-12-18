@@ -82,6 +82,7 @@
                   <thead class="table-light">
                     <tr>
                       <th>Name</th>
+                      <th>Type</th>
                       <th>Category</th>
                       <th>Description</th>
                       <th>Contacts</th>
@@ -343,22 +344,22 @@
       tbody.innerHTML = '';
 
       if (!groups.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No groups found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No groups found.</td></tr>`;
         return;
       }
 
       groups.forEach(g => {
-        const categoryColor = {
-          students: 'primary',
-          teachers: 'success',
-          parents: 'warning',
-          staff: 'info'
-        }[g.category] || 'secondary';
+        const isUniversal = g.is_universal || false;
+        const typeText = isUniversal ? 'Universal' : 'Personal';
+        const typeBadge = isUniversal 
+          ? '<span class="badge bg-success">🌐 Universal</span>' 
+          : '<span class="badge bg-info">👤 Personal</span>';
 
         tbody.innerHTML += `
           <tr>
             <td>${g.name || '-'}</td>
-            <td><span class="badge bg-${categoryColor}">${g.category || '-'}</span></td>
+            <td>${typeBadge}</td>
+            <td>${g.class_dept || '-'}</td>
             <td>${g.description || '-'}</td>
             <td>${g.contacts_count || (g.contacts || []).length || 0}</td>
             <td>${new Date(g.created_at).toLocaleDateString()}</td>

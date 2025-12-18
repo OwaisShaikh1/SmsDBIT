@@ -1,28 +1,31 @@
+"""
+API Views for SMS Portal
+Handles all JSON API endpoints for the SMS management system.
+"""
+
+import json
+import logging
+from datetime import datetime, timedelta
+
+from django.conf import settings
+from django.contrib.auth import authenticate
+from django.contrib.auth.decorators import login_required
+from django.db.models import Q, Count, Sum
+from django.http import JsonResponse
+from django.shortcuts import render
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+
 from rest_framework import generics, status, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import authenticate
-from django.db.models import Q, Count, Sum
-from django.utils import timezone
-from datetime import datetime, timedelta
-from django.shortcuts import render
-from django.contrib.auth.decorators import login_required
-from django.conf import settings
-import logging
-import asyncio
-import json
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth.decorators import login_required
-from asgiref.sync import sync_to_async, async_to_sync
-from .services import send_sms_message
 
 from .models import (
     User, SMSMessage, SenderID, Template, APICredentials, SMSUsageStats,
-    Group, StudentContact, Campaign
+    Group, StudentContact, Campaign, SMSRecipient
 )
 from .serializers import (
     UserRegistrationSerializer, UserLoginSerializer, UserSerializer,
@@ -30,61 +33,134 @@ from .serializers import (
     APICredentialsSerializer, SendSMSSerializer, SMSUsageStatsSerializer,
     DashboardStatsSerializer, ContactSerializer
 )
-from .services import send_sms_message
+from .services import MySMSMantraService
 
 logger = logging.getLogger(__name__)
 
 
-
-
-
-
-import asyncio
-import logging
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-
-from .services import send_sms_message  # your async function from the file you shared
-
-logger = logging.getLogger(__name__)
+# =========================================================================
+# SMS SENDING API
+# =========================================================================
 
 @csrf_exempt
-def send_sms(request):
-    """Sync endpoint for sending SMS via MySMSMantra."""
+@login_required
+def send_sms_api(request):
+    """API endpoint for sending SMS via MySMSMantra with campaign tracking."""
     if request.method != "POST":
         return JsonResponse({"error": "Only POST allowed"}, status=405)
 
     try:
+        from .models import Campaign, SMSRecipient
+        from .services import MySMSMantraService
+        
         data = json.loads(request.body.decode("utf-8"))
         template_id = data.get("template_id")
         recipients = data.get("recipients", [])
-        messages = data.get("messages", [])
+        message = data.get("message", "")
+        sender_id = data.get("sender_id", "BOMBYS")
+        campaign_id = data.get("campaign_id")
 
-        if not recipients or not messages:
-            return JsonResponse({"error": "Missing messages or recipients"}, status=400)
+        if not recipients:
+            return JsonResponse({"error": "No recipients provided"}, status=400)
 
-        message_text = messages[0].get("message", "")
+        # Find or create campaign
+        campaign = None
+        if campaign_id and str(campaign_id).isdigit():
+            try:
+                campaign = Campaign.objects.get(id=int(campaign_id), user=request.user)
+            except Campaign.DoesNotExist:
+                pass
 
-        # ✅ Direct sync call (no async_to_sync needed)
-        result = send_sms_message(
-            user=request.user if request.user.is_authenticated else None,
-            message_text=message_text,
-            recipients_list=recipients,
-            template_id=template_id,
+        if not campaign:
+            campaign = Campaign.objects.create(
+                user=request.user,
+                title=f"Campaign {timezone.now().strftime('%d-%b %H:%M')}",
+                status="active"
+            )
+
+        # Create master SMSMessage record
+        sms_message = SMSMessage.objects.create(
+            user=request.user,
+            campaign=campaign,
+            message_text=message,
+            recipients=recipients,
+            total_recipients=len(recipients),
+            status='pending'
         )
 
-        return JsonResponse(result, status=200 if result.get("success") else 500)
+        logger.info(f"Sending SMS to {len(recipients)} recipients under campaign {campaign.title}")
+
+        # Send SMS via MySMSMantra API
+        service = MySMSMantraService(user=request.user)
+        result = service.send_sms_sync(
+            sms_message_id=sms_message.id,
+            message_text=message,
+            recipients_list=recipients,
+            sender_id=sender_id
+        )
+
+        if not result.get("success"):
+            sms_message.status = "failed"
+            sms_message.save()
+            return JsonResponse({"success": False, "error": result.get("error")}, status=500)
+
+        # Parse API response and save recipient details
+        api_data = result.get("api_response", {}).get("Data", [])
+        sent_count = 0
+        failed_count = 0
+
+        for entry in api_data:
+            phone = entry.get("MobileNumber")
+            api_msg_id = entry.get("MessageId")
+            error_code = entry.get("MessageErrorCode")
+            status = "sent" if error_code == 0 else "failed"
+
+            SMSRecipient.objects.create(
+                message=sms_message,
+                phone_number=phone,
+                api_message_id=api_msg_id,
+                status=status,
+                submit_time=timezone.now() if status == "sent" else None,
+                error_description=entry.get("MessageErrorDescription")
+            )
+
+            if status == "sent":
+                sent_count += 1
+            else:
+                failed_count += 1
+
+        # Update SMSMessage
+        sms_message.status = "sent" if sent_count > 0 else "failed"
+        sms_message.sent_at = timezone.now()
+        sms_message.successful_deliveries = sent_count
+        sms_message.failed_deliveries = failed_count
+        sms_message.save()
+
+        # Auto-calculate Campaign statistics
+        campaign.update_stats()
+        campaign.status = "completed" if campaign.total_failed == 0 else "partial"
+        campaign.save()
+
+        logger.info(f"✅ SMS campaign '{campaign.title}' results → Sent={sent_count}, Failed={failed_count}")
+
+        return JsonResponse({
+            "success": True,
+            "campaign_id": campaign.id,
+            "message_id": sms_message.id,
+            "delivered": sent_count,
+            "failed": failed_count,
+            "recipients": len(api_data),
+            "api_response": api_data,
+        })
 
     except Exception as e:
-        logger.exception("Error in send_sms view")
+        logger.exception("Error in send_sms_api")
         return JsonResponse({"error": str(e)}, status=500)
 
-# -------------------------------------------------------------------------
-# ✅ CONTACTS API — Fetch from DB (used by /contacts/ page)
-# -------------------------------------------------------------------------
-from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
-from .models import StudentContact
+
+# =========================================================================
+# CONTACTS MANAGEMENT API
+# =========================================================================
 
 @login_required
 def get_contacts(request):
@@ -130,60 +206,8 @@ def get_contacts(request):
 
 
 # -------------------------------------------------------------------------
-# ✅ DASHBOARD PAGE (HTML)
+# ✅ API ENDPOINTS
 # -------------------------------------------------------------------------
-@login_required
-def dashboard_page(request):
-    """Renders the dashboard HTML (admin/teacher role-aware)."""
-    # from .views_helpers import build_dashboard_data  # move helper funcs there to keep clean
-    stats = {}  # TODO: Implement build_dashboard_data function
-
-    if getattr(request.user, 'role', None) == 'admin':
-        pending_templates = Template.objects.filter(status='pending').count()
-        context = {
-            'stats': stats,
-            'recent_messages': stats.get('recent_messages', []),
-            'pending_templates': pending_templates,
-        }
-        return render(request, 'dashboard_admin.html', context)
-    else:
-        context = {
-            'stats': stats,
-            'recent_messages': stats.get('recent_messages', []),
-            'templates_count': stats.get('templates_count', 0),
-            'groups_count': stats.get('groups_count', 0),
-        }
-        return render(request, 'dashboard_teacher.html', context)
-
-
-# -------------------------------------------------------------------------
-# ✅ SIDEBAR HTML PARTIAL (used by fetch('/sidebar/'))
-# -------------------------------------------------------------------------
-from django.views.decorators.cache import cache_page
-from django.views.decorators.vary import vary_on_cookie
-
-@login_required
-@vary_on_cookie           # Different cache per user session
-def sidebar_view(request):
-    """Sidebar partial HTML, loaded dynamically into each page.
-
-    Ensure no caching of the rendered HTML so each authenticated user
-    receives the correct links. Previously this view was cached which
-    could result in an admin sidebar being shown to a teacher.
-    """
-    role = getattr(request.user, 'role', 'teacher')
-    response = render(request, 'partials/sidebar.html', {'role': role})
-    # Prevent client/proxy caches from storing per-user HTML
-    response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-    response['Pragma'] = 'no-cache'
-    response['Expires'] = '0'
-    return response
-
-
-# sms/views.py
-from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
-from .models import StudentContact, Group, Template
 
 @login_required
 def get_contacts(request):
@@ -197,6 +221,10 @@ def get_contacts(request):
 
     return JsonResponse(list(contacts.values()), safe=False)
 
+
+# =========================================================================
+# GROUPS MANAGEMENT API
+# =========================================================================
 
 @login_required
 def get_groups(request):
@@ -314,11 +342,14 @@ def get_group_contacts(request, group_id):
             'created_at': c.created_at.isoformat()
         } for c in contacts]
         
+        print(contacts_data)
+
         return JsonResponse({
             'group_id': group.id,
             'group_name': group.name,
             'contacts': contacts_data
         })
+    
     except Group.DoesNotExist:
         return JsonResponse({"error": "Group not found"}, status=404)
     except Exception as e:
@@ -534,6 +565,10 @@ def delete_contact_from_group(request, contact_id):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+# =========================================================================
+# REPORTS API
+# =========================================================================
+
 @login_required
 def reports_dashboard(request):
     """Get dashboard data for reports page"""
@@ -707,6 +742,10 @@ def reports_generate(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+# =========================================================================
+# TEMPLATES API
+# =========================================================================
+
 @login_required
 def get_templates(request):
     """Admins see all templates; teachers see their own templates and approved ones."""
@@ -730,6 +769,10 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 import json
 from sms.models import Campaign
+
+# =========================================================================
+# CAMPAIGNS API
+# =========================================================================
 
 @login_required
 def get_campaigns(request):
@@ -777,6 +820,48 @@ def create_campaign(request):
 
     return JsonResponse({"error": "POST only"}, status=405)
 
+
+@csrf_exempt
+@login_required
+def refresh_sms_status(request, message_id):
+    """Refresh SMS message status from provider API."""
+    if request.method != 'POST':
+        return JsonResponse({"error": "POST only"}, status=405)
+    
+    try:
+        # Verify message belongs to user (or user is admin)
+        sms_message = SMSMessage.objects.get(id=message_id)
+        if request.user.role != 'admin' and sms_message.user != request.user:
+            return JsonResponse({"error": "Permission denied"}, status=403)
+        
+        # Call service to refresh status
+        from .services import MySMSMantraService
+        service = MySMSMantraService(user=request.user)
+        result = service.refresh_message_status(message_id)
+        
+        if result.get("success"):
+            return JsonResponse({
+                "success": True,
+                "message": result.get("message"),
+                "successful": result.get("successful", 0),
+                "failed": result.get("failed", 0)
+            })
+        else:
+            return JsonResponse({
+                "success": False,
+                "error": result.get("error", "Failed to refresh status")
+            }, status=400)
+            
+    except SMSMessage.DoesNotExist:
+        return JsonResponse({"error": "Message not found"}, status=404)
+    except Exception as e:
+        logger.error(f"Error refreshing SMS status: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+# =========================================================================
+# USER MANAGEMENT API
+# =========================================================================
 
 @login_required
 def create_user_view(request):
@@ -915,6 +1000,10 @@ def delete_user_view(request):
         logger.exception("Error deleting user")
         return JsonResponse({"error": str(e)}, status=500)
 
+
+# =========================================================================
+# SETTINGS API
+# =========================================================================
 
 @login_required
 def get_settings(request):
@@ -1075,6 +1164,10 @@ def test_sms_settings(request):
         logger.exception("Error testing SMS settings")
         return JsonResponse({"error": str(e)}, status=500)
 
+
+# =========================================================================
+# DASHBOARD STATISTICS API
+# =========================================================================
 
 @login_required
 def get_send_page_stats(request):
