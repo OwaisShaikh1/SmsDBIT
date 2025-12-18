@@ -5,7 +5,7 @@ from django.template.exceptions import TemplateDoesNotExist
 from django.conf import settings
 from django.utils import timezone
 from django.http import HttpResponseNotFound, JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.utils.decorators import method_decorator
 from .auth_utils import AuthMixin, get_user_from_request
 import json
@@ -105,6 +105,7 @@ from sms.models import SMSMessage, SMSUsageStats, Template, Group
 
 
 @login_required(login_url='/login/')
+@ensure_csrf_cookie
 def DashboardView(request):
     user = request.user
 
@@ -485,7 +486,8 @@ class HomeView(FrontendTemplateView):
 from django.views.decorators.cache import cache_page
 from django.views.decorators.vary import vary_on_cookie
 
-@vary_on_cookie           # Different cache per user session
+@ensure_csrf_cookie  # Ensure CSRF cookie is set for forms in sidebar
+@vary_on_cookie      # Different cache per user session
 def sidebar_view(request):
     """Return sidebar partial HTML, caching it server-side per-user for performance.
 
@@ -511,7 +513,7 @@ def sidebar_view(request):
 
     if not html:
         context = {"role": getattr(user, 'role', 'teacher'), 'request': request}
-        html = render_to_string('includes/sidebar.html', context=context)
+        html = render_to_string('includes/sidebar.html', context=context, request=request)
 
         # Determine TTL: use session expiry age if available, otherwise default to 1 hour.
         try:

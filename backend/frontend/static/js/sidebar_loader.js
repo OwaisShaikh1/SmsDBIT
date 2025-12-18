@@ -16,10 +16,31 @@
     return cache;
   }
 
+  function getCsrfToken() {
+    // Get CSRF token from cookie or meta tag
+    const cookieValue = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
+    if (cookieValue) return cookieValue.split('=')[1];
+    const metaTag = document.querySelector('meta[name="csrf-token"]');
+    if (metaTag) return metaTag.getAttribute('content');
+    return null;
+  }
+
   function insertHtml(html){
     const container = document.getElementById('sidebarContainer');
     if(!container) return;
     container.innerHTML = html;
+    
+    // Update CSRF token in any forms within the sidebar to match the current page's token
+    const csrfToken = getCsrfToken();
+    if (csrfToken) {
+      const forms = container.querySelectorAll('form');
+      forms.forEach(form => {
+        const tokenInput = form.querySelector('input[name="csrfmiddlewaretoken"]');
+        if (tokenInput) {
+          tokenInput.value = csrfToken;
+        }
+      });
+    }
   }
 
   async function fetchSidebar(){
