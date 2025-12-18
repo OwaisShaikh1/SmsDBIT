@@ -23,7 +23,7 @@
   <div class="container-fluid">
     <div class="row">
       <div class="col-md-2 p-0" id="sidebarContainer">
-        {% include 'includes/sidebar.html' %}
+        <noscript>{% include 'includes/sidebar.html' with role=request.user.role %}</noscript>
       </div>
 
       <div class="col-md-10">

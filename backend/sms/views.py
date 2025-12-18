@@ -164,11 +164,20 @@ from django.views.decorators.vary import vary_on_cookie
 
 @login_required
 @vary_on_cookie           # Different cache per user session
-@cache_page(60 * 60)      # Cache for 1 hour
 def sidebar_view(request):
-    """Sidebar partial HTML, loaded dynamically into each page."""
+    """Sidebar partial HTML, loaded dynamically into each page.
+
+    Ensure no caching of the rendered HTML so each authenticated user
+    receives the correct links. Previously this view was cached which
+    could result in an admin sidebar being shown to a teacher.
+    """
     role = getattr(request.user, 'role', 'teacher')
-    return render(request, 'partials/sidebar.html', {'role': role})
+    response = render(request, 'partials/sidebar.html', {'role': role})
+    # Prevent client/proxy caches from storing per-user HTML
+    response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    return response
 
 
 # sms/views.py
@@ -192,13 +201,11 @@ def get_contacts(request):
 @login_required
 def get_groups(request):
     user = request.user
+    # Admins see all groups. Other users see universal groups + their own personal groups.
     if user.role == "admin":
         groups = Group.objects.all()
-    elif user.assigned_class:
-        groups = Group.objects.filter(class_dept=user.assigned_class)
     else:
-        # Teachers see their own groups
-        groups = Group.objects.filter(teacher=user)
+        groups = Group.objects.filter(Q(is_universal=True) | Q(teacher=user)).distinct()
 
     # Include contact count in response
     groups_data = []
@@ -209,10 +216,10 @@ def get_groups(request):
             'class_dept': g.class_dept,
             'description': g.description,
             'created_at': g.created_at.isoformat(),
-            'teacher_id': g.teacher.id,
-            'teacher_name': g.teacher.username,
+            'teacher_id': g.teacher.id if g.teacher else None,
+            'teacher_name': g.teacher.username if g.teacher else ('Universal' if g.is_universal else None),
             'contacts_count': g.contacts.count(),
-            'is_active': True  # Add if you have this field
+            'is_universal': bool(g.is_universal),
         })
 
     return JsonResponse(groups_data, safe=False)
@@ -231,6 +238,7 @@ def create_group(request):
         name = data.get('name', '').strip()
         category = data.get('category', '').strip()
         description = data.get('description', '').strip()
+        is_universal = bool(data.get('is_universal', False))
         
         if not name:
             return JsonResponse({"error": "Group name is required"}, status=400)
@@ -238,17 +246,30 @@ def create_group(request):
         if not category:
             return JsonResponse({"error": "Category is required"}, status=400)
             
-        # Check if group with same name already exists for this teacher
-        if Group.objects.filter(name=name, teacher=request.user).exists():
-            return JsonResponse({"error": "Group with this name already exists"}, status=400)
-        
-        # Create the group
-        group = Group.objects.create(
-            name=name,
-            class_dept=category,  # Store category in class_dept
-            description=description,
-            teacher=request.user
-        )
+        # Admins may create universal groups; non-admins cannot.
+        if is_universal and request.user.role != 'admin':
+            return JsonResponse({"error": "Only admins can create universal groups"}, status=403)
+
+        # Check duplicate for this scope
+        if is_universal:
+            if Group.objects.filter(name=name, is_universal=True).exists():
+                return JsonResponse({"error": "A universal group with this name already exists"}, status=400)
+            group = Group.objects.create(
+                name=name,
+                class_dept=category,
+                description=description,
+                is_universal=True,
+                teacher=None
+            )
+        else:
+            if Group.objects.filter(name=name, teacher=request.user).exists():
+                return JsonResponse({"error": "Group with this name already exists"}, status=400)
+            group = Group.objects.create(
+                name=name,
+                class_dept=category,
+                description=description,
+                teacher=request.user
+            )
         
         return JsonResponse({
             "success": True,
@@ -276,8 +297,13 @@ def get_group_contacts(request, group_id):
         group = Group.objects.get(id=group_id)
         
         # Check permission
-        if request.user.role != 'admin' and group.teacher != request.user:
-            return JsonResponse({"error": "Permission denied"}, status=403)
+        # Admins can access any group. Universal groups are readable by everyone.
+        if request.user.role != 'admin':
+            if group.is_universal:
+                # allowed to read universal groups
+                pass
+            elif group.teacher != request.user:
+                return JsonResponse({"error": "Permission denied"}, status=403)
         
         contacts = StudentContact.objects.filter(class_dept=group)
         contacts_data = [{
@@ -308,8 +334,11 @@ def add_contacts_to_group(request, group_id):
     try:
         group = Group.objects.get(id=group_id)
         
-        # Check permission
-        if request.user.role != 'admin' and group.teacher != request.user:
+        # Check permission: only admins or the owning teacher can modify personal groups.
+        if group.is_universal and request.user.role != 'admin':
+            return JsonResponse({"error": "Permission denied: universal groups are admin-managed"}, status=403)
+
+        if not group.is_universal and request.user.role != 'admin' and group.teacher != request.user:
             return JsonResponse({"error": "Permission denied"}, status=403)
         
         data = json.loads(request.body)
@@ -323,6 +352,8 @@ def add_contacts_to_group(request, group_id):
         if source_group_id:
             try:
                 source_group = Group.objects.get(id=source_group_id)
+                # If source is universal and user is not admin, copying is allowed (read),
+                # but adding into a personal group still must obey permissions for target group above.
                 source_contacts = StudentContact.objects.filter(class_dept=source_group)
                 
                 for contact in source_contacts:

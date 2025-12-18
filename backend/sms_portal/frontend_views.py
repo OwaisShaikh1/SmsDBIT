@@ -32,7 +32,7 @@ from sms.models import (
     SMSRecipient,
     Campaign,
 )
-from sms.services import MySMSMantraService
+from sms.services import MySMSMantraService, AdminAnalyticsService
 
 
 def _base_context(request):
@@ -381,12 +381,18 @@ def template_approvals_view(request):
 
 @login_required
 def activity_page(request):
-    # Placeholder data for now
-    activities = [
-        {'action': 'Sent SMS', 'details': 'Message sent to Class 10A', 'timestamp': timezone.now(), 'status': 'success'},
-        {'action': 'Created Template', 'details': 'New template "Exam Alert" added', 'timestamp': timezone.now(), 'status': 'success'},
-    ]
-    return render(request, 'dashboard/activity.html', {'activities': activities})
+    # Admin-only activity page. Use AdminAnalyticsService for aggregates and logs.
+    user = request.user
+    if not getattr(user, 'role', None) == 'admin':
+        return redirect('/dashboard/')
+
+    service = AdminAnalyticsService(user=request.user)
+    admin_totals = service.get_admin_totals()
+    activities = service.get_activity_logs(start=0, length=25)
+
+    context = _base_context(request)
+    context.update({'admin_totals': admin_totals, 'activities': activities})
+    return render(request, 'dashboard/activity.html', context)
 
 
 # sms_portal/frontend_views.py
@@ -421,10 +427,27 @@ class LoginView(View):
 from django.contrib.auth import logout
 from django.shortcuts import redirect
 from django.contrib import messages
+from django.core.cache import cache
+from django.template.loader import render_to_string
+from django.http import HttpResponse
 
 def LogoutView(request):
     if request.method == 'POST':
+        # Capture session key and user id to invalidate cached sidebar
+        session_key = getattr(request.session, 'session_key', None)
+        user_id = getattr(request.user, 'id', None)
         logout(request)
+        # Invalidate both session-key keyed and user-id keyed caches (fallback)
+        try:
+            if session_key:
+                cache.delete(f"sidebar_html_session_{session_key}")
+        except Exception:
+            pass
+        try:
+            if user_id:
+                cache.delete(f"sidebar_html_user_{user_id}")
+        except Exception:
+            pass
         messages.success(request, "You have been logged out successfully.")
         return redirect('/login/')
     else:
@@ -462,10 +485,54 @@ class HomeView(FrontendTemplateView):
 from django.views.decorators.cache import cache_page
 from django.views.decorators.vary import vary_on_cookie
 
-@cache_page(60 * 60)      # Cache for 1 hour
 @vary_on_cookie           # Different cache per user session
 def sidebar_view(request):
-    return render(request, "includes/sidebar.html", {"role": request.user.role})
+    """Return sidebar partial HTML, caching it server-side per-user for performance.
+
+    The cached HTML is keyed by user id so each authenticated user gets their
+    correct links. We still set `no-store` response headers to prevent
+    intermediate proxies or clients caching user-specific HTML.
+    """
+    user = request.user
+
+    # Prefer session-key-based cache so cached fragment is tied to the session.
+    session_key = getattr(request.session, 'session_key', None)
+    cache_key = None
+    if session_key:
+        cache_key = f"sidebar_html_session_{session_key}"
+    else:
+        cache_key = f"sidebar_html_user_{getattr(user, 'id', 'anon')}"
+
+    html = None
+    try:
+        html = cache.get(cache_key)
+    except Exception:
+        html = None
+
+    if not html:
+        context = {"role": getattr(user, 'role', 'teacher'), 'request': request}
+        html = render_to_string('includes/sidebar.html', context=context)
+
+        # Determine TTL: use session expiry age if available, otherwise default to 1 hour.
+        try:
+            ttl = request.session.get_expiry_age()
+            # Sanity bounds
+            if not isinstance(ttl, int) or ttl <= 0:
+                ttl = 60 * 60
+        except Exception:
+            ttl = 60 * 60
+
+        try:
+            cache.set(cache_key, html, ttl)
+        except Exception:
+            pass
+
+    response = HttpResponse(html)
+    # Prevent intermediate caches from storing per-user HTML
+    response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    return response
 
 
 # -------------------------

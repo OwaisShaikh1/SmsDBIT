@@ -1,9 +1,20 @@
 ;(function(){
-  const SIDEBAR_KEY = 'sidebar_html_v1';
   const SIDEBAR_URL = '/sidebar/';
-  // Strategy: 'cache-first' will use session cache and NOT refetch.
-  // 'stale-while-revalidate' will use cache then refresh in background.
-  const DEFAULT_STRATEGY = 'cache-first';
+
+  // In-memory / hidden DOM cache for the sidebar HTML. We preload the
+  // fragment in the background and inject it into visible pages when ready.
+  let cachedHtml = null;
+
+  function createCacheContainer(){
+    let cache = document.getElementById('sidebarCache');
+    if (!cache) {
+      cache = document.createElement('div');
+      cache.id = 'sidebarCache';
+      cache.style.display = 'none';
+      document.body.appendChild(cache);
+    }
+    return cache;
+  }
 
   function insertHtml(html){
     const container = document.getElementById('sidebarContainer');
@@ -16,36 +27,57 @@
       const res = await fetch(SIDEBAR_URL, { credentials: 'same-origin' });
       if(!res.ok) throw new Error('Network response not ok');
       const html = await res.text();
-      insertHtml(html);
-      try{ sessionStorage.setItem(SIDEBAR_KEY, html); }catch(e){}
+      cachedHtml = html;
+      try{ createCacheContainer().innerHTML = html; }catch(e){}
       return html;
     }catch(err){
       console.error('Sidebar load failed:', err);
-      insertHtml('<div class="p-3 text-white bg-danger">Sidebar failed to load.</div>');
       return null;
     }
   }
 
-  window.loadSidebar = async function(force=false){
-    const container = document.getElementById('sidebarContainer');
-    if(!container) return null;
-    const strategy = window.SIDEBAR_LOAD_STRATEGY || DEFAULT_STRATEGY;
-
-    if (!force){
-      const cached = sessionStorage.getItem(SIDEBAR_KEY);
-      if (cached){
-        insertHtml(cached);
-        if (strategy === 'stale-while-revalidate') {
-          // refresh in background but don't block
-          fetchSidebar();
-        }
-        return cached;
+  // Preload sidebar into hidden cache. Safe to call multiple times.
+  window.preloadSidebar = async function(){
+    if (cachedHtml) return cachedHtml;
+    try{
+      const cache = document.getElementById('sidebarCache');
+      if (cache && cache.innerHTML) {
+        cachedHtml = cache.innerHTML;
+        return cachedHtml;
       }
-    }
-
-    // No cached content or forced fetch
+    }catch(e){}
     return await fetchSidebar();
   };
 
-  document.addEventListener('DOMContentLoaded', ()=>{ window.loadSidebar(false); });
+  // Inject cached sidebar into the visible container. If nothing cached,
+  // trigger a background fetch and inject once it completes.
+  window.injectSidebar = async function(){
+    const container = document.getElementById('sidebarContainer');
+    if(!container) return null;
+
+    const cache = document.getElementById('sidebarCache');
+    if (cache && cache.innerHTML) {
+      insertHtml(cache.innerHTML);
+      return cache.innerHTML;
+    }
+
+    if (cachedHtml) {
+      insertHtml(cachedHtml);
+      return cachedHtml;
+    }
+
+    // Last-resort: fetch and inject
+    const html = await fetchSidebar();
+    if (html) insertHtml(html);
+    return html;
+  };
+
+  // On initial load: fetch in background, then inject (in case cache already had content).
+  document.addEventListener('DOMContentLoaded', async ()=>{
+    // Start background preload ASAP
+    window.preloadSidebar();
+    // Try to inject any cached HTML immediately (no flicker placeholder)
+    window.injectSidebar();
+  });
+
 })();

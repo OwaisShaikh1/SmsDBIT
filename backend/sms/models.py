@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
 from django.conf import settings
@@ -114,25 +115,48 @@ class Template(models.Model):
 # GROUPS (Class or Batch)
 # --------------------------
 class Group(models.Model):
-    """Represents a class or contact group (e.g., Class 10A)"""
-    name = models.CharField(max_length=255, unique=True)
+    """Represents a class or contact group (e.g., Class 10A).
+
+    Supports two scopes:
+    - Universal groups (is_universal=True, teacher is NULL): visible to all users.
+    - Personal groups (teacher set): owned by a specific teacher.
+    """
+    name = models.CharField(max_length=255)
     teacher = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
         related_name='teacher_groups',
-        limit_choices_to={'role': 'teacher'}
+        limit_choices_to={'role': 'teacher'},
+        null=True,
+        blank=True,
     )
+    is_universal = models.BooleanField(default=False)
     class_dept = models.CharField(max_length=100, blank=True, null=True)
     description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        # Ensure (teacher, name) is unique so a teacher cannot create duplicate
+        # names within their own scope. Also enforce unique name for universal groups.
+        unique_together = (('teacher', 'name'),)
+        constraints = [
+            models.UniqueConstraint(fields=['name'], condition=Q(teacher__isnull=True), name='unique_universal_group_name')
+        ]
+
     def save(self, *args, **kwargs):
+        # If marked universal, clear teacher
+        if self.is_universal:
+            self.teacher = None
+
+        # If teacher present and no class_dept set, default from teacher
         if self.teacher and not self.class_dept:
             self.class_dept = self.teacher.assigned_class
+
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.name} - {self.teacher.email}"
+        owner = 'Universal' if self.is_universal else (self.teacher.email if self.teacher else 'Unknown')
+        return f"{self.name} - {owner}"
 
 
 # --------------------------

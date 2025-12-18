@@ -44,6 +44,25 @@
       <button type="submit" class="btn btn-link text-white text-decoration-none p-0">🚪 Logout</button>
     </form>
 
+    <script>
+      (function(){
+        const logoutForm = document.querySelector('form[action="/logout/"]');
+        if(!logoutForm) return;
+        logoutForm.addEventListener('submit', function(){
+          try{
+            for (const k of Object.keys(sessionStorage || {})){
+              if (k && k.startsWith('sidebar_html_v1')) sessionStorage.removeItem(k);
+            }
+          }catch(e){}
+          try{
+            for (const k of Object.keys(localStorage || {})){
+              if (k && k.startsWith('sidebar_html_v1')) localStorage.removeItem(k);
+            }
+          }catch(e){}
+        });
+      })();
+    </script>
+
     <div class="footer mt-3 text-white-50 small">
       © {{ now|date:"Y" }} SMS Portal
     </div>
