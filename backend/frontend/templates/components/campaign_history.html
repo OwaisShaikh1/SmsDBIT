@@ -1,12 +1,15 @@
 <!-- Campaign History Component -->
 
 <div class="card mb-4">
-  <div class="card-header bg-white fw-bold">
-    {% if request.user.role == 'admin' %}
-      Recent Campaigns (All Users)
-    {% else %}
-      Your Recent Campaigns
-    {% endif %}
+  <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+    <span>
+      {% if request.user.role == 'admin' %}
+        Recent Campaigns (All Users)
+      {% else %}
+        Your Recent Campaigns
+      {% endif %}
+    </span>
+    <small class="text-muted">Click "Refresh Status" to check delivery status for each recipient</small>
   </div>
 
   <div class="card-body p-0">
@@ -44,6 +47,8 @@
                     <span class="badge bg-warning text-dark">Partial</span>
                   {% elif camp.status == 'failed' %}
                     <span class="badge bg-danger">Failed</span>
+                  {% elif camp.status == 'active' %}
+                    <span class="badge bg-info">Pending Check</span>
                   {% else %}
                     <span class="badge bg-secondary">{{ camp.status|capfirst }}</span>
                   {% endif %}
@@ -59,7 +64,7 @@
                     <h6 class="fw-bold mb-3">Messages & Recipients</h6>
 
                     {% if camp.messages.exists %}
-                      {% for msg in camp.messages.all|dictsortreversed:"created_at" %}
+                      {% for msg in camp.messages.all %}
                         <div class="mb-4 border rounded p-3 bg-white shadow-sm">
                           <div class="d-flex justify-content-between align-items-center">
                             <div class="fw-semibold">
@@ -67,9 +72,18 @@
                               <span class="text-muted small">
                                 — {{ msg.sent_at|default:msg.created_at|date:"d M Y, H:i" }}
                               </span>
+                              {% if msg.status == 'submitted' %}
+                                <span class="badge bg-info ms-2">Awaiting Status Check</span>
+                              {% elif msg.status == 'sent' %}
+                                <span class="badge bg-success ms-2">All Delivered</span>
+                              {% elif msg.status == 'partial' %}
+                                <span class="badge bg-warning text-dark ms-2">Partially Delivered</span>
+                              {% elif msg.status == 'failed' %}
+                                <span class="badge bg-danger ms-2">Failed</span>
+                              {% endif %}
                             </div>
                             <button class="btn btn-sm btn-outline-primary" 
-                                    onclick="refreshMessageStatus({{ msg.id }})"
+                                    onclick="refreshMessageStatus({{ msg.id }}, this)"
                                     id="refresh-btn-{{ msg.id }}">
                               <i class="fa fa-sync"></i> Refresh Status
                             </button>
@@ -80,11 +94,19 @@
 
                           {% if msg.recipient_logs.exists %}
                             <div class="mt-3">
-                              <table class="table table-sm table-bordered align-middle mb-0">
+                              <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small class="text-muted">
+                                  <span class="badge bg-success">Delivered: {{ msg.successful_deliveries }}</span>
+                                  <span class="badge bg-danger ms-1">Failed: {{ msg.failed_deliveries }}</span>
+                                </small>
+                              </div>
+                              <table class="table table-sm table-bordered align-middle mb-0" id="recipients-table-{{ msg.id }}">
                                 <thead class="table-light">
                                   <tr>
                                     <th>#</th>
+                                    <th>Student Name</th>
                                     <th>Phone</th>
+                                    <th>Message ID</th>
                                     <th>Status</th>
                                     <th>Submitted</th>
                                     <th>Delivered</th>
@@ -92,33 +114,45 @@
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {% for r in msg.recipient_logs.all|dictsortreversed:"submit_time" %}
-                                    <tr>
+                                  {% for r in msg.recipient_logs.all %}
+                                    <tr id="recipient-row-{{ r.id }}">
                                       <td>{{ forloop.counter }}</td>
+                                      <td>
+                                        {% if r.contact %}
+                                          {{ r.contact.name }}
+                                        {% else %}
+                                          <span class="text-muted">—</span>
+                                        {% endif %}
+                                      </td>
                                       <td>{{ r.phone_number }}</td>
+                                      <td><small class="text-muted">{{ r.api_message_id|default:"—" }}</small></td>
                                       <td>
                                         {% if r.status == 'delivered' %}
                                           <span class="badge bg-success">Delivered</span>
                                         {% elif r.status == 'failed' %}
                                           <span class="badge bg-danger">Failed</span>
+                                        {% elif r.status == 'submit_failed' %}
+                                          <span class="badge bg-danger">Rejected</span>
                                         {% elif r.status == 'sent' %}
                                           <span class="badge bg-primary">Sent</span>
+                                        {% elif r.status == 'pending' %}
+                                          <span class="badge bg-warning text-dark">Pending</span>
                                         {% else %}
                                           <span class="badge bg-secondary">{{ r.status|capfirst }}</span>
                                         {% endif %}
                                       </td>
-                                      <td>{{ r.submit_time|default:"—" }}</td>
-                                      <td>{{ r.delivery_time|default:"—" }}</td>
+                                      <td>{{ r.submit_time|date:"d M H:i"|default:"—" }}</td>
+                                      <td>{{ r.delivery_time|date:"d M H:i"|default:"—" }}</td>
                                       <td>
                                         {% if r.error_description and r.error_description != 'Success' %}
-                                          {{ r.error_description }}
+                                          <small class="text-danger">{{ r.error_description }}</small>
                                         {% else %}
-                                          <span class="text-success">OK</span>
+                                          <span class="text-success">—</span>
                                         {% endif %}
                                       </td>
                                     </tr>
                                   {% empty %}
-                                    <tr><td colspan="6" class="text-muted text-center">No recipients logged yet.</td></tr>
+                                    <tr><td colspan="8" class="text-muted text-center">No recipients logged yet.</td></tr>
                                   {% endfor %}
                                 </tbody>
                               </table>
@@ -145,19 +179,69 @@
 </div>
 
 <script>
-async function refreshMessageStatus(messageId) {
-  const btn = document.getElementById(`refresh-btn-${messageId}`);
+// Store and restore expanded campaign sections
+(function() {
+  // On page load, restore expanded campaigns
+  window.addEventListener('DOMContentLoaded', function() {
+    const expandedCampaigns = JSON.parse(sessionStorage.getItem('expandedCampaigns') || '[]');
+    expandedCampaigns.forEach(campId => {
+      const element = document.getElementById(`camp${campId}`);
+      if (element) {
+        const bsCollapse = new bootstrap.Collapse(element, { toggle: false });
+        bsCollapse.show();
+      }
+    });
+    
+    // If there's a hash, scroll to it
+    if (window.location.hash) {
+      setTimeout(() => {
+        const element = document.querySelector(window.location.hash);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 500);
+    }
+  });
+  
+  // Track which campaigns are expanded
+  document.addEventListener('shown.bs.collapse', function(e) {
+    if (e.target.id && e.target.id.startsWith('camp')) {
+      const campId = e.target.id.replace('camp', '');
+      const expanded = JSON.parse(sessionStorage.getItem('expandedCampaigns') || '[]');
+      if (!expanded.includes(campId)) {
+        expanded.push(campId);
+        sessionStorage.setItem('expandedCampaigns', JSON.stringify(expanded));
+      }
+    }
+  });
+  
+  document.addEventListener('hidden.bs.collapse', function(e) {
+    if (e.target.id && e.target.id.startsWith('camp')) {
+      const campId = e.target.id.replace('camp', '');
+      const expanded = JSON.parse(sessionStorage.getItem('expandedCampaigns') || '[]');
+      const filtered = expanded.filter(id => id !== campId);
+      sessionStorage.setItem('expandedCampaigns', JSON.stringify(filtered));
+    }
+  });
+})();
+
+async function refreshMessageStatus(messageId, buttonElement) {
+  const btn = buttonElement || document.getElementById(`refresh-btn-${messageId}`);
   const originalHTML = btn.innerHTML;
+  
+  // Find the campaign ID for this message (to restore expansion after reload)
+  const campaignRow = btn.closest('tr.collapse');
+  const campaignId = campaignRow ? campaignRow.id.replace('camp', '') : null;
   
   // Disable button and show loading
   btn.disabled = true;
-  btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Updating...';
+  btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Checking each recipient...';
   
   try {
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
                       document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
     
-    const response = await fetch(`/api/sms/${messageId}/refresh/`, {
+    const response = await fetch(`/api/messageStatus/${messageId}/`, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -169,7 +253,26 @@ async function refreshMessageStatus(messageId) {
     const result = await response.json();
     
     if (response.ok && result.success) {
-      alert(`✅ Status updated!\n\nSuccessful: ${result.successful}\nFailed: ${result.failed}`);
+      let message = `✅ Status updated!\n\n`;
+      message += `📬 Delivered: ${result.delivered || 0}\n`;
+      message += `❌ Failed: ${result.failed || 0}\n`;
+      message += `⏳ Pending: ${result.pending || 0}\n`;
+      message += `\nUpdated ${result.updated || 0} recipient(s)`;
+      
+      if (result.errors && result.errors.length > 0) {
+        message += `\n\n⚠️ Some errors occurred:\n${result.errors.slice(0, 3).join('\n')}`;
+        if (result.errors.length > 3) {
+          message += `\n... and ${result.errors.length - 3} more`;
+        }
+      }
+      
+      alert(message);
+      
+      // Set hash to scroll back to this section after reload
+      if (campaignId) {
+        window.location.hash = `#camp${campaignId}`;
+      }
+      
       // Reload page to show updated data
       window.location.reload();
     } else {

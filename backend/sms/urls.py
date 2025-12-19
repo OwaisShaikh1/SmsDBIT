@@ -46,7 +46,7 @@ from .views import (
 urlpatterns = [
     # SMS Sending API
     path("sms/send/", send_sms_api, name="api_send_sms_message"),
-    path("sms/<int:message_id>/refresh/", refresh_sms_status, name="api_refresh_sms_status"),
+    path("messageStatus/<int:message_id>/", refresh_sms_status, name="api_refresh_sms_status"),
     path("send/stats/", get_send_page_stats, name="api_send_page_stats"),
     
     # Contacts Management API

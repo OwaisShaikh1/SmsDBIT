@@ -272,6 +272,14 @@ class SMSRecipient(models.Model):
 
     def __str__(self):
         return f"{self.phone_number} ({self.status})"
+    
+    @property
+    def contact(self):
+        """Get the associated contact by phone number"""
+        try:
+            return StudentContact.objects.filter(phone_number=self.phone_number).first()
+        except Exception:
+            return None
 
 
 # --------------------------

@@ -104,53 +104,30 @@ def send_sms_api(request):
             sms_message.save()
             return JsonResponse({"success": False, "error": result.get("error")}, status=500)
 
-        # Parse API response and save recipient details
-        api_data = result.get("api_response", {}).get("Data", [])
-        sent_count = 0
-        failed_count = 0
+        # Recipients are now created by update_sms_message() in the service
+        # with proper api_message_id for each recipient
+        sms_message.refresh_from_db()
+        
+        # Get counts from the created recipient logs
+        submitted_count = sms_message.recipient_logs.filter(status="pending").count()
+        submit_failed_count = sms_message.recipient_logs.filter(status="submit_failed").count()
 
-        for entry in api_data:
-            phone = entry.get("MobileNumber")
-            api_msg_id = entry.get("MessageId")
-            error_code = entry.get("MessageErrorCode")
-            status = "sent" if error_code == 0 else "failed"
-
-            SMSRecipient.objects.create(
-                message=sms_message,
-                phone_number=phone,
-                api_message_id=api_msg_id,
-                status=status,
-                submit_time=timezone.now() if status == "sent" else None,
-                error_description=entry.get("MessageErrorDescription")
-            )
-
-            if status == "sent":
-                sent_count += 1
-            else:
-                failed_count += 1
-
-        # Update SMSMessage
-        sms_message.status = "sent" if sent_count > 0 else "failed"
-        sms_message.sent_at = timezone.now()
-        sms_message.successful_deliveries = sent_count
-        sms_message.failed_deliveries = failed_count
-        sms_message.save()
-
-        # Auto-calculate Campaign statistics
-        campaign.update_stats()
-        campaign.status = "completed" if campaign.total_failed == 0 else "partial"
+        # Update Campaign to 'active' - not completed until we check status
+        campaign.total_recipients = sms_message.total_recipients
+        campaign.total_sent = submitted_count
+        campaign.status = "active"
         campaign.save()
 
-        logger.info(f"✅ SMS campaign '{campaign.title}' results → Sent={sent_count}, Failed={failed_count}")
+        logger.info(f"📤 SMS campaign '{campaign.title}' submitted → Accepted={submitted_count}, Rejected={submit_failed_count}")
 
         return JsonResponse({
             "success": True,
             "campaign_id": campaign.id,
             "message_id": sms_message.id,
-            "delivered": sent_count,
-            "failed": failed_count,
-            "recipients": len(api_data),
-            "api_response": api_data,
+            "submitted": submitted_count,
+            "rejected": submit_failed_count,
+            "recipients": sms_message.total_recipients,
+            "redirect_to": "/history/",
         })
 
     except Exception as e:
@@ -824,7 +801,10 @@ def create_campaign(request):
 @csrf_exempt
 @login_required
 def refresh_sms_status(request, message_id):
-    """Refresh SMS message status from provider API."""
+    """
+    Refresh SMS message status from provider API.
+    Makes individual API calls for each recipient's MessageId.
+    """
     if request.method != 'POST':
         return JsonResponse({"error": "POST only"}, status=405)
     
@@ -834,7 +814,7 @@ def refresh_sms_status(request, message_id):
         if request.user.role != 'admin' and sms_message.user != request.user:
             return JsonResponse({"error": "Permission denied"}, status=403)
         
-        # Call service to refresh status
+        # Call service to refresh status for each recipient individually
         from .services import MySMSMantraService
         service = MySMSMantraService(user=request.user)
         result = service.refresh_message_status(message_id)
@@ -842,9 +822,13 @@ def refresh_sms_status(request, message_id):
         if result.get("success"):
             return JsonResponse({
                 "success": True,
-                "message": result.get("message"),
-                "successful": result.get("successful", 0),
-                "failed": result.get("failed", 0)
+                "message": "Status refreshed successfully",
+                "delivered": result.get("delivered", 0),
+                "failed": result.get("failed", 0),
+                "pending": result.get("pending", 0),
+                "updated": result.get("updated", 0),
+                "successful": result.get("delivered", 0),  # Backward compatibility
+                "errors": result.get("errors"),
             })
         else:
             return JsonResponse({

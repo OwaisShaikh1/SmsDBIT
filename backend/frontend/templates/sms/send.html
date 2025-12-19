@@ -383,7 +383,7 @@ async function handleSubmit(e) {
 
   const csrftoken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
   try {
-    const res = await fetch('/send/', {
+    const res = await fetch('/api/sms/send/', {
       method: "POST",
       credentials: "include",
       headers: {

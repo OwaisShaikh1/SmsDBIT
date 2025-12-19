@@ -192,10 +192,25 @@ class MessageHistoryView(FrontendTemplateView):
         user = self.request.user
 
         # Get campaigns with messages and recipient logs (same as dashboard)
+        # Order messages by -created_at within each campaign
+        from django.db.models import Prefetch
+        from sms.models import SMSMessage
+        
+        messages_prefetch = Prefetch(
+            'messages',
+            queryset=SMSMessage.objects.order_by('-created_at')
+        )
+        
         if user.role == 'admin':
-            campaigns = Campaign.objects.prefetch_related('messages__recipient_logs').order_by('-created_at')
+            campaigns = Campaign.objects.prefetch_related(
+                messages_prefetch, 
+                'messages__recipient_logs'
+            ).order_by('-created_at')
         else:
-            campaigns = Campaign.objects.filter(user=user).prefetch_related('messages__recipient_logs').order_by('-created_at')
+            campaigns = Campaign.objects.filter(user=user).prefetch_related(
+                messages_prefetch,
+                'messages__recipient_logs'
+            ).order_by('-created_at')
 
         # Calculate statistics
         total_sent = sum(camp.total_sent or 0 for camp in campaigns)
