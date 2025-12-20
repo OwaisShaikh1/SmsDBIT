@@ -268,6 +268,7 @@ class SMSRecipient(models.Model):
     status = models.CharField(max_length=20, default="pending")  # pending/sent/delivered/failed
     submit_time = models.DateTimeField(null=True, blank=True)
     delivery_time = models.DateTimeField(null=True, blank=True)
+    error_code = models.IntegerField(null=True, blank=True)
     error_description = models.TextField(null=True, blank=True)
 
     def __str__(self):

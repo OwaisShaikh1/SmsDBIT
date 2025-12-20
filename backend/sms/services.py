@@ -150,6 +150,7 @@ class MySMSMantraService:
                                 "status": "pending",
                                 "api_message_id": api_msg_id,
                                 "submit_time": timezone.now(),
+                                "error_code": msg_error_code,
                                 "error_description": None,
                             },
                         )
@@ -163,6 +164,7 @@ class MySMSMantraService:
                                 "status": "submit_failed",
                                 "api_message_id": api_msg_id,
                                 "submit_time": None,
+                                "error_code": msg_error_code,
                                 "error_description": msg_error_desc,
                             },
                         )
@@ -286,6 +288,7 @@ class MySMSMantraService:
                     if status_text in delivered_codes:
                         recipient.status = "delivered"
                         recipient.delivery_time = timezone.now()
+                        recipient.error_code = 0
                         recipient.error_description = None
                         delivered_count += 1
                     elif status_text in failed_codes:
@@ -307,6 +310,10 @@ class MySMSMantraService:
                 else:
                     # API call failed for this recipient
                     error_msg = result.get("error", "Unknown error")
+                    error_code = result.get("error_code")
+                    if error_code is not None:
+                        recipient.error_code = error_code
+                        recipient.save()
                     errors.append(f"{recipient.phone_number}: {error_msg}")
                     logger.warning(f"  ⚠️ {recipient.phone_number}: API error - {error_msg}")
 

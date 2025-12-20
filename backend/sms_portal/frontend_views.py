@@ -315,7 +315,6 @@ class LoginView(View):
     template_name = 'auth/login.html'
 
     def get(self, request, *args, **kwargs):
-        # If user is already logged in → redirect to dashboard
         if request.user.is_authenticated:
             return redirect('/dashboard/')
         return render(request, self.template_name)
@@ -324,15 +323,29 @@ class LoginView(View):
         email = request.POST.get('email') or request.POST.get('username')
         password = request.POST.get('password')
 
-        user = authenticate(request, username=email, password=password)
-        if user is not None:
-            # Log the user in (creates Django session cookie)
-            login(request, user)
-            next_url = request.GET.get('next', '/dashboard/')
-            return redirect(next_url)
-        else:
-            messages.error(request, "Invalid email or password.")
+        # Single generic error message
+        invalid_msg = "Invalid email or password."
+
+        try:
+            user_obj = User.objects.get(email=email)
+        except User.DoesNotExist:
+            messages.error(request, invalid_msg)
             return render(request, self.template_name, {'error': True})
+
+        if not user_obj.is_active:
+            messages.error(
+                request,
+                "Your account is disabled. Please contact the administrator."
+            )
+            return render(request, self.template_name, {'error': True})
+
+        user = authenticate(request, username=email, password=password)
+        if user:
+            login(request, user)
+            return redirect(request.GET.get('next', '/dashboard/'))
+
+        messages.error(request, invalid_msg)
+        return render(request, self.template_name, {'error': True})
 
 
 def LogoutView(request):

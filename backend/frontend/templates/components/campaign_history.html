@@ -144,7 +144,11 @@
                                       <td>{{ r.submit_time|date:"d M H:i"|default:"—" }}</td>
                                       <td>{{ r.delivery_time|date:"d M H:i"|default:"—" }}</td>
                                       <td>
-                                        {% if r.error_description and r.error_description != 'Success' %}
+                                        {% if r.error_code and r.error_code != 0 %}
+                                          <small class="text-danger">
+                                            <strong>Code {{ r.error_code }}:</strong> {{ r.error_description|default:"Error" }}
+                                          </small>
+                                        {% elif r.error_description and r.error_description != 'Success' %}
                                           <small class="text-danger">{{ r.error_description }}</small>
                                         {% else %}
                                           <span class="text-success">—</span>

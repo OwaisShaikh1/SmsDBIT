@@ -18,11 +18,11 @@
     }
     .auth-container {
       position: relative;
-      width: 900px;
+      width: 450px;
       max-width: 100%;
-      height: 520px;
+      height: 450px;
       background: #fff;
-      border-radius: 15px;
+      border-radius: 30px;
       box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
       overflow: hidden;
       display: flex;
@@ -31,7 +31,7 @@
       position: absolute;
       top: 0;
       height: 100%;
-      width: 50%;
+      width: 100%;
       padding: 2rem;
       transition: all 0.6s ease-in-out;
     }
@@ -115,7 +115,7 @@
       </form>
     </div>
 
-    <!-- SIGNUP (Inactive for now, can be wired to API later) -->
+    <!-- SIGNUP (Inactive for now, can be wired to API later) 
     <div class="form-container signup-container">
       <h3>Create Account ✨</h3>
       <form id="signupForm" onsubmit="return handleSignup(event)">
@@ -141,19 +141,19 @@
         </div>
         <button class="btn btn-primary w-100" type="submit">Sign Up</button>
       </form>
-    </div>
+    </div> -->
 
-    <!-- OVERLAY -->
+    <!-- OVERLAY 
     <div class="overlay-container">
       <h4 id="overlayTitle">Hello, Friend!</h4>
       <p id="overlayText">Don't have an account? Sign up and start managing your SMS campaigns.</p>
       <button id="toggleButton" onclick="toggleForm()">Sign Up</button>
-    </div>
+    </div> -->
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-  <script>
+  <!--script>
     const container = document.getElementById("authContainer");
     const toggleButton = document.getElementById("toggleButton");
     const overlayTitle = document.getElementById("overlayTitle");
@@ -177,6 +177,6 @@
       e.preventDefault();
       alert("Signup is not yet connected to backend. Please ask admin to create your account.");
     }
-  </script>
+  </script-->
 </body>
 </html>
