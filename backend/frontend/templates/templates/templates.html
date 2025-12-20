@@ -17,6 +17,21 @@
     .card { border: none; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
     .variable-tag { background-color: #e5e7eb; border-radius: 12px; padding: 2px 8px; font-size: 0.75rem; margin: 2px; display: inline-block; }
     .variable-tag:hover { background-color: #d1d5db; }
+    .variable-tag {
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    margin: 2px;
+    display: inline-block;
+    font-weight: 500;
+  }
+
+  .var-string   { background-color: #e0f2fe; color: #0369a1; }
+  .var-integer  { background-color: #dcfce7; color: #166534; }
+  .var-date     { background-color: #fef3c7; color: #92400e; }
+  .var-time     { background-color: #ede9fe; color: #5b21b6; }
+  .var-float    { background-color: #ffe4e6; color: #9f1239; }
+  .var-unknown  { background-color: #e5e7eb; color: #374151; }
   </style>
 </head>
 <body>
@@ -158,22 +173,25 @@
         const st = t.status || '';
         const statusBadge = statusMap[st] || 'secondary';
 
-        // Robust variable extraction from 'variable_schema'
-        let vars = [];
+
+        // Render variables with datatype colors
         const schema = t.variable_schema;
-        if (Array.isArray(schema)) {
-          vars = schema.map(v => {
-            if (typeof v === 'string') return v;
-            if (v && (v.name || v.label)) return v.name || v.label;
-            return JSON.stringify(v);
+        let variableList = '-';
+
+        if (schema && typeof schema === 'object') {
+          const tags = Object.entries(schema).map(([name, meta]) => {
+            const type = meta?.type || 'unknown';
+            const knownTypes = ['string', 'integer', 'date', 'time', 'float'];
+            const cssClass = knownTypes.includes(type) ? `var-${type}` : 'var-unknown';
+
+            return `<span class="variable-tag ${cssClass}">{${escapeHtml(name)}} <small>(${escapeHtml(type)})</small></span>`;
           });
-        } else if (schema && typeof schema === 'object') {
-          // object form: take keys or stringify
-          const keys = Object.keys(schema);
-          vars = keys.length ? keys : [JSON.stringify(schema)];
+
+          variableList = tags.length ? tags.join(' ') : '-';
         }
 
-        const variableList = vars.length ? vars.map(v => `<span class="variable-tag">{${escapeHtml(v)}}</span>`).join(" ") : '-';
+
+
 
         const created = new Date(t.created_at || Date.now()).toLocaleDateString();
 
