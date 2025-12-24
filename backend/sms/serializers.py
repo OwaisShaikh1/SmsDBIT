@@ -139,17 +139,25 @@ class TemplateSerializer(serializers.ModelSerializer):
     """Serializer for SMS templates"""
     # expose variable_schema if present
     variable_schema = serializers.JSONField(required=False, allow_null=True)
+    
 
     class Meta:
         model = Template
         fields = ('id', 'title', 'content', 'category', 'status', 'variable_schema', 'is_active', 'created_at', 'updated_at')
         read_only_fields = ('id', 'created_at', 'updated_at')
 
+    
+
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
+        
         return super().create(validated_data)
 
 
+import re
+
+def normalize_template(content):
+    return re.sub(r'\{\{\s*(.*?)\s*\}\}', r'[[\1]]', content)
 #
 # SMS message serializer
 #

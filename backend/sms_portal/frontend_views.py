@@ -7,6 +7,7 @@ All API logic should be in sms/views.py
 import logging
 from datetime import datetime
 from collections import defaultdict
+import re
 
 from django.shortcuts import render, redirect
 from django.views.generic import TemplateView
@@ -456,3 +457,5 @@ def sidebar_view(request):
 def custom_404_view(request, exception=None):
     ctx = _base_context(request)
     return HttpResponseNotFound(render(request, '404.html', ctx).content)
+
+

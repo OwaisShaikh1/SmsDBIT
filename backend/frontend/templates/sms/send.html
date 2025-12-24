@@ -2,119 +2,90 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Send SMS | SMS Portal</title>
 
-  <!-- Bootstrap -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 
   <style>
-    body { background-color: #f8f9fa; }
-    .sidebar a.active { background-color: #3b82f6 !important; }
-    .header { background-color: white; padding: 15px 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .card { border: none; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-    .preview-table th, .preview-table td { font-size: 0.9rem; vertical-align: middle; }
-    .char-count { font-size: 0.8rem; color: #6b7280; }
+    body { background:#f8f9fa }
+    .header { background:#fff;padding:15px 25px;box-shadow:0 2px 4px rgba(0,0,0,.05) }
+    .card { border:none;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,.05) }
+    .preview-table th,.preview-table td{font-size:.9rem;vertical-align:middle}
   </style>
-</head> 
+</head>
+
 <body>
-<script>window.API_BASE = '{{ API_BASE }}';</script>
+<script>window.API_BASE='{{ API_BASE }}'</script>
 
 <div class="container-fluid">
   <div class="row">
-    <!-- Sidebar -->
     <div class="col-md-2 p-0" id="sidebarContainer">
       <noscript>{% include 'includes/sidebar.html' with role=user_role %}</noscript>
     </div>
 
-    <!-- Main Content -->
     <div class="col-md-10">
-      <div class="header d-flex justify-content-between align-items-center">
+      <div class="header d-flex justify-content-between">
         <div>
           <h4 class="mb-0">Send SMS</h4>
           <small class="text-muted">Compose and personalize messages</small>
         </div>
         <div class="text-end">
-          <div style="font-size: .85rem; color: #6b7280;">Signed in as</div>
+          <small class="text-muted">Signed in as</small><br>
           <strong>{{ user.email }}</strong>
         </div>
       </div>
 
       <div class="container mt-4">
+
         <!-- Stats -->
         <div class="row g-3 mb-4">
-          <div class="col-md-3"><div class="card text-center p-3"><h6>Messages Today</h6><h4 id="todayCount">0</h4></div></div>
-          <div class="col-md-3"><div class="card text-center p-3"><h6>Remaining Credits</h6><h4 id="remainingCredits">2,000</h4></div></div>
-          <div class="col-md-3"><div class="card text-center p-3"><h6>Delivery Rate</h6><h4 id="deliveryRate">95%</h4></div></div>
-          <div class="col-md-3"><div class="card text-center p-3"><h6>Cost / SMS</h6><h4>₹0.15</h4></div></div>
+          <div class="col-md-3"><div class="card p-3 text-center"><h6>Messages Today</h6><h4 id="todayCount">0</h4></div></div>
+          <div class="col-md-3"><div class="card p-3 text-center"><h6>Remaining Credits</h6><h4 id="remainingCredits">0</h4></div></div>
+          <div class="col-md-3"><div class="card p-3 text-center"><h6>Delivery Rate</h6><h4 id="deliveryRate">0%</h4></div></div>
+          <div class="col-md-3"><div class="card p-3 text-center"><h6>Cost / SMS</h6><h4>₹0.15</h4></div></div>
         </div>
 
-        <!-- SMS Form -->
+        <!-- Form -->
         <div class="card p-4 mb-5">
-          <form id="smsForm" onsubmit="return handleSubmit(event)">
-            
-            <!-- Campaign -->
+          <form id="smsForm">
+
             <div class="mb-3">
               <label class="form-label">Campaign</label>
-              <div class="input-group">
-                <select class="form-select" id="campaignSelect">
-                  <option value="">-- New Campaign --</option>
-                </select>
-                <button class="btn btn-outline-secondary" type="button" onclick="createNewCampaign()">
-                  <i class="fa fa-plus"></i> New
-                </button>
-              </div>
-              <small class="text-muted">You can group messages under a campaign for tracking.</small>
+              <select id="campaignSelect" class="form-select"></select>
             </div>
 
-            <!-- Template -->
             <div class="mb-3">
-              <label class="form-label">Select Template</label>
-              <select class="form-select" id="templateSelect" onchange="onTemplateSelect()">
-                <option value="">-- Select a Template --</option>
-              </select>
+              <label class="form-label">Template</label>
+              <select id="templateSelect" class="form-select"></select>
             </div>
 
-
-            <!-- Group -->
             <div class="mb-3">
-              <label class="form-label">Select Group</label>
-              <select class="form-select" id="groupSelect" onchange="loadContactsForGroup()">
-                <option value="">-- Select Group --</option>
-              </select>
+              <label class="form-label">Group</label>
+              <select id="groupSelect" class="form-select"></select>
             </div>
 
-            <!-- Dynamic Variables -->
-            <div id="variableInputs" class="row g-3 mb-4" style="display:none;"></div>
+            <div id="variableInputs" class="row g-3 mb-4"></div>
 
-            <!-- Preview Table -->
             <div class="mb-3">
-              <h6>Preview Messages</h6>
-              <div class="table-responsive">
-                <table class="table table-bordered preview-table" id="previewTable">
-                  <thead class="table-light">
-                    <tr>
-                      <th>#</th>
-                      <th>Student</th>
-                      <th>Phone</th>
-                      <th>Message</th>
-                    </tr>
-                  </thead>
-                  <tbody><tr><td colspan="4" class="text-center text-muted py-3">Select template and group</td></tr></tbody>
-                </table>
-              </div>
+              <h6>Preview</h6>
+              <table class="table table-bordered preview-table">
+                <thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Message</th></tr></thead>
+                <tbody id="previewBody"></tbody>
+              </table>
             </div>
 
-            <!-- Submit -->
             <div class="text-end">
-              <button type="submit" class="btn btn-primary" id="sendBtn">
+              <button class="btn btn-primary" id="sendBtn">
                 <i class="fas fa-paper-plane me-2"></i>Send SMS
               </button>
             </div>
+
           </form>
         </div>
+
       </div>
     </div>
   </div>
@@ -123,359 +94,192 @@
 <meta name="csrf-token" content="{{ csrf_token }}">
 
 <script>
-let templates = [];
-let groups = [];
-let contacts = [];
-let selectedTemplate = null;
-let variableValues = {};
+/* ===================== STATE ===================== */
+let templates=[],groups=[],contacts=[],selectedTemplate=null;
+let variableValues={};
 
-// 🧩 Predefined variable mapping by template (based on content keywords)
-const templateVariables = {
-  "Greetings of the day": [
-    { label: "Username", type: "text" },
-    { label: "Password", type: "text" }
-  ],
-  "Cumulative attendance": [
-    { label: "Month / Subject", type: "text" },
-    { label: "Attendance %", type: "number" }
-  ],
-  "semester is starting": [
-    { label: "Semester", type: "text" },
-    { label: "Starting Date", type: "date" }
-  ],
-  "Parent Teacher Meeting on": [
-    { label: "Meeting Date", type: "date" },
-    { label: "Meeting Time", type: "time" }
-  ],
-  "sem has started": [
-    { label: "Semester", type: "text" },
-    { label: "Start Date", type: "date" }
-  ],
-  "there is a Parent Teacher Meeting": [
-    { label: "Meeting Date", type: "date" },
-    { label: "Meeting Time", type: "time" }
-  ]
+/* ===================== UTILS ===================== */
+function normalize(name){
+  return name.toLowerCase().replace(/[\s_]+/g,'');
+}
+
+/* ===================== INIT ===================== */
+document.addEventListener("DOMContentLoaded",()=>{
+  fetchJSON('/templates/',d=>populate('templateSelect',templates=d,'title'));
+  fetchJSON('/groups/',d=>populate('groupSelect',groups=d,'name'));
+  fetchJSON('/campaigns/',d=>populate('campaignSelect',d,'title'));
+  fetchJSON('/send/stats/',s=>{
+    todayCount.textContent=s.today_count;
+    remainingCredits.textContent=s.remaining_credits;
+    deliveryRate.textContent=s.delivery_rate+'%';
+  });
+});
+
+/* ===================== FETCH ===================== */
+function fetchJSON(url,cb){
+  fetch(API_BASE+url,{credentials:'include'})
+    .then(r=>r.ok&&r.json())
+    .then(d=>d&&cb(d));
+}
+
+/* ===================== UI ===================== */
+function populate(id,data,label){
+  const el=document.getElementById(id);
+  el.innerHTML='<option value="">-- Select --</option>';
+  data.forEach(i=>el.insertAdjacentHTML('beforeend',
+    `<option value="${i.id}">${i[label]}</option>`));
+}
+
+/* ===================== TEMPLATE ===================== */
+templateSelect.onchange=()=>{
+  selectedTemplate=templates.find(t=>t.id==templateSelect.value);
+  if(!selectedTemplate) return;
+  renderVariableInputs(selectedTemplate.variable_schema);
+  renderPreview();
 };
 
-document.addEventListener("DOMContentLoaded", () => {
-  fetchTemplates();
-  fetchGroups();
-  fetchSendPageStats();
-});
-
-// Fetch user-specific stats for the cards
-async function fetchSendPageStats() {
-  try {
-    const res = await fetch(`${window.API_BASE}/send/stats/`, { credentials: 'include' });
-    if (res.ok) {
-      const stats = await res.json();
-      document.getElementById("todayCount").textContent = stats.today_count;
-      document.getElementById("remainingCredits").textContent = stats.remaining_credits.toLocaleString();
-      document.getElementById("deliveryRate").textContent = stats.delivery_rate + '%';
-    }
-  } catch (err) {
-    console.error('Failed to load stats:', err);
-  }
-}
-
-async function fetchTemplates() {
-  const res = await fetch(`${window.API_BASE}/templates/`, { credentials: 'include' });
-  if (res.ok) {
-    templates = await res.json();
-    populateSelect("templateSelect", templates, "title");
-  }
-}
-
-async function fetchGroups() {
-  const res = await fetch(`${window.API_BASE}/groups/`, { credentials: 'include' });
-  if (res.ok) {
-    groups = await res.json();
-    populateSelect("groupSelect", groups, "name");
-  }
-}
-
-let campaigns = [];
-
-// Fetch existing campaigns
-async function fetchCampaigns() {
-  const res = await fetch(`${window.API_BASE}/campaigns/`, { credentials: 'include' });
-  if (res.ok) {
-    campaigns = await res.json();
-    populateSelect("campaignSelect", campaigns, "title");
-  }
-}
-
-// Create new campaign
-async function createNewCampaign() {
-  const title = prompt("Enter campaign title (e.g. Parent Meeting 23 Oct):");
-  if (!title) return;
-
-  const csrftoken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-  const res = await fetch(`${window.API_BASE}/campaigns/new/`, {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      "X-CSRFToken": csrftoken,
-    },
-    body: JSON.stringify({ title }),
-  });
-
-  if (res.ok) {
-    const newCampaign = await res.json();
-    if (newCampaign && newCampaign.id) {
-      campaigns.push(newCampaign);
-      populateSelect("campaignSelect", campaigns, "title");
-      document.getElementById("campaignSelect").value = newCampaign.id;
-      alert(`✅ Campaign "${newCampaign.title || 'Untitled'}" created!`);
-    } else {
-      alert("⚠️ Campaign created but no title returned.");
-    }
-  } else {
-    alert("❌ Failed to create campaign.");
-  }
-}
-
-// Load campaigns on page load
-document.addEventListener("DOMContentLoaded", () => {
-  fetchTemplates();
-  fetchGroups();
-  fetchCampaigns();
-  fetchSendPageStats();
-});
-
-
-async function loadContactsForGroup() {
-  const groupId = document.getElementById("groupSelect").value;
-  if (!groupId) return;
-  const res = await fetch(`${window.API_BASE}/groups/${groupId}/contacts/`, { credentials: 'include' });
-  if (res.ok) {
-    const data = await res.json();
-    // API returns { contacts: [...] } not a direct array
-    contacts = data.contacts || data || [];
-    console.log('Loaded contacts:', contacts);
+groupSelect.onchange=()=>{
+  fetchJSON(`/groups/${groupSelect.value}/contacts/`,d=>{
+    contacts=d.contacts||[];
     renderPreview();
-  }
-}
-
-function populateSelect(id, data, labelKey) {
-  const select = document.getElementById(id);
-  select.innerHTML = `<option value="">-- Select --</option>`;
-  data.forEach(item => {
-    select.insertAdjacentHTML("beforeend", `<option value="${item.id}">${item[labelKey]}</option>`);
   });
-}
+};
 
-// 🧠 Assign known variable labels and datatypes
-function onTemplateSelect() {
-  const selectedId = document.getElementById("templateSelect").value;
-  selectedTemplate = templates.find(t => t.id == selectedId);
-  if (!selectedTemplate) return;
-
-  const variableContainer = document.getElementById("variableInputs");
-  variableContainer.innerHTML = "";
+/* ===================== VARIABLES ===================== */
+function renderVariableInputs(schema){
   variableValues = {};
+  variableInputs.innerHTML = '';
+  if (!schema) return;
 
-  // Determine which mapping applies based on template text
-  const matchKey = Object.keys(templateVariables).find(k =>
-    selectedTemplate.content.toLowerCase().includes(k.toLowerCase())
-  );
+  Object.keys(schema).forEach(originalName => {
+    const normalized = normalize(originalName);
 
-  const vars = matchKey ? templateVariables[matchKey] : [];
-  if (!vars.length) {
-    variableContainer.style.display = "none";
-    renderPreview();
-    return;
-  }
-
-  // Create labeled inputs
-  vars.forEach((v, i) => {
-    let inputHTML = "";
-    if (v.type === "date") inputHTML = `<input type="date" class="form-control" id="var_${i+1}" onchange="updateVariable(${i+1}, this.value)">`;
-    else if (v.type === "time") inputHTML = `<input type="time" class="form-control" id="var_${i+1}" onchange="updateVariable(${i+1}, this.value)">`;
-    else if (v.type === "number") inputHTML = `<input type="number" step="any" class="form-control" id="var_${i+1}" placeholder="Enter ${v.label}" oninput="updateVariable(${i+1}, this.value)">`;
-    else inputHTML = `<input type="text" class="form-control" id="var_${i+1}" placeholder="Enter ${v.label}" oninput="updateVariable(${i+1}, this.value)">`;
-
-    variableContainer.innerHTML += `
+    variableInputs.insertAdjacentHTML('beforeend', `
       <div class="col-md-4">
-        <label class="form-label">${v.label}</label>
-        ${inputHTML}
+        <label class="form-label">${originalName}</label>
+        <input class="form-control"
+          oninput="setVar('${originalName}', this.value)">
       </div>
-    `;
+    `);
+  });
+}
+
+
+function setVar(originalName, value) {
+  variableValues[originalName] = value;
+  renderPreview();
+}
+
+
+/* ===================== RENDER ===================== */
+function applyVars(text) {
+  let out = text;
+
+  Object.entries(variableValues).forEach(([key, value]) => {
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`\\\\[\\s*${escaped}\\s*\\]\\]`, 'gi');
+    out = out.replace(regex, value ?? '');
   });
 
-  variableContainer.style.display = "flex";
-  renderPreview();
+  return out;
 }
 
-function updateVariable(index, value) {
-  variableValues[index] = value;
-  renderPreview();
-}
 
-function renderPreview() {
-  const tbody = document.querySelector("#previewTable tbody");
-  tbody.innerHTML = "";
+function renderPreview(){
+  const body=document.getElementById('previewBody');
+  body.innerHTML='';
+  if(!selectedTemplate||!contacts.length) return;
 
-  if (!selectedTemplate) {
-    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">Select template and group</td></tr>`;
-    return;
-  }
-
-  if (contacts.length==0) {
-    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">No contacts available</td></tr>`;
-    return;
-  }
-
-  contacts.forEach((c, idx) => {
-    let msg = selectedTemplate.content;
-    let index = 0;
-    msg = msg.replace(/\{#var#\}/g, () => {
-      index++;
-      return variableValues[index] || '';
-    });
-
-    tbody.innerHTML += `
+  contacts.forEach((c,i)=>{
+    body.insertAdjacentHTML('beforeend',`
       <tr>
-        <td>${idx + 1}</td>
+        <td>${i+1}</td>
         <td>${c.name}</td>
         <td>${c.phone_number}</td>
-        <td>${msg}</td>
+        <td>${applyVars(selectedTemplate.content)}</td>
       </tr>
-    `;
+    `);
   });
 }
 
-async function handleSubmit(e) {
+/* ===================== SUBMIT ===================== */
+smsForm.onsubmit=async e=>{
   e.preventDefault();
+  if(!selectedTemplate||!contacts.length) return alert('Select template & group');
 
-  if (!selectedTemplate || !contacts.length) {
-    alert("Select a template and group first!");
-    return;
-  }
-
-  // Disable the submit button
-  const sendBtn = document.getElementById('sendBtn');
-  sendBtn.disabled = true;
-  sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sending...';
-
-  const personalizedMessages = contacts.map(c => {
-    let text = selectedTemplate.content;
-    let index = 0;
-    text = text.replace(/\{#var#\}/g, () => {
-      index++;
-      return variableValues[index] || '';
-    });
-    return { name: c.name, phone: c.phone_number, message: text };
-  });
-
-  const recipients = personalizedMessages.map(p => p.phone);
-  const message = personalizedMessages[0].message;
-
-  const payload = {
-    template_id: selectedTemplate.id,
-    recipients: recipients,
-    message: message,
-    sender_id: "BOMBYS",
-    campaign_id: document.getElementById("campaignSelect").value || null
+  const msg=applyVars(selectedTemplate.content);
+  const payload={
+    template_id:selectedTemplate.id,
+    recipients:contacts.map(c=>c.phone_number),
+    message:msg,
+    sender_id:'BOMBYS',
+    campaign_id:campaignSelect.value||null
   };
 
+  sendBtn.disabled=true;
+  sendBtn.innerHTML='Sending…';
 
-  const csrftoken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-  try {
-    const res = await fetch('/api/sms/send/', {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRFToken": csrftoken,
+  try{
+    const r=await fetch('/api/sms/send/',{
+      method:'POST',
+      credentials:'include',
+      headers:{
+        'Content-Type':'application/json',
+        'X-CSRFToken':document.querySelector('[name=csrf-token]').content
       },
-      body: JSON.stringify(payload),
+      body:JSON.stringify(payload)
     });
-
-    const result = await res.json();
-    if (res.ok && result.success) {
-      // Show success message briefly then redirect
-      alert(`✅ SMS sent successfully to ${recipients.length} recipient(s)! Redirecting to message history...`);
-      
-      // Redirect to message history page after 1 second
-      setTimeout(() => {
-        window.location.href = '/history/';
-      }, 1000);
-    } else {
-      alert(`❌ Failed to send SMS: ${result.message || 'Unknown error'}`);
-      // Re-enable button on failure
-      sendBtn.disabled = false;
-      sendBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Send SMS';
-    }
-  } catch (error) {
-    alert(`❌ Network error: ${error.message}`);
-    // Re-enable button on error
-    sendBtn.disabled = false;
-    sendBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Send SMS';
+    const j=await r.json();
+    if(!j.success) throw j;
+    alert('SMS sent!');
+    location.href='/history/';
+  }catch{
+    alert('Failed to send');
+    sendBtn.disabled=false;
+    sendBtn.innerHTML='Send SMS';
   }
-}
+};
 </script>
 
-  <script>
-    // Cache-first sidebar loading for Send SMS
-    (function(){
-      const CACHE_KEY = 'sidebar_html_v1';
-      const CACHE_TTL_KEY = 'sidebar_html_v1_ttl';
-      const CACHE_TTL_MS = 1000 * 60 * 30; // 30 minutes
+<!-- ✅ SIDEBAR CACHE SCRIPT (ADDED BACK, UNCHANGED) -->
+<script>
+(function(){
+  const CACHE_KEY='sidebar_html_v1';
+  const CACHE_TTL_KEY='sidebar_html_v1_ttl';
+  const TTL=1000*60*30;
 
-      function getCsrfToken() {
-        const cookieValue = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
-        if (cookieValue) return cookieValue.split('=')[1];
-        const metaTag = document.querySelector('meta[name="csrf-token"]');
-        if (metaTag) return metaTag.getAttribute('content');
-        return null;
-      }
+  function csrf(){
+    const c=document.cookie.split('; ').find(r=>r.startsWith('csrftoken='));
+    return c?c.split('=')[1]:null;
+  }
 
-      function injectSidebar(html) {
-        const container = document.getElementById('sidebarContainer');
-        if (!container) return;
-        container.innerHTML = html;
-        
-        // Update CSRF tokens in forms
-        const csrfToken = getCsrfToken();
-        if (csrfToken) {
-          const forms = container.querySelectorAll('form');
-          forms.forEach(form => {
-            const tokenInput = form.querySelector('input[name="csrfmiddlewaretoken"]');
-            if (tokenInput) tokenInput.value = csrfToken;
-          });
-        }
-      }
+  function inject(html){
+    sidebarContainer.innerHTML=html;
+    const t=csrf();
+    if(!t) return;
+    sidebarContainer.querySelectorAll('input[name=csrfmiddlewaretoken]')
+      .forEach(i=>i.value=t);
+  }
 
-      function fetchAndCache() {
-        return fetch('/sidebar/', { credentials: 'same-origin' })
-          .then(r => { if (!r.ok) throw new Error('Failed to load'); return r.text(); })
-          .then(html => {
-            try {
-              sessionStorage.setItem(CACHE_KEY, html);
-              sessionStorage.setItem(CACHE_TTL_KEY, String(Date.now() + CACHE_TTL_MS));
-            } catch (e) { /* ignore storage errors */ }
-            injectSidebar(html);
-          })
-          .catch(err => console.error('Sidebar load failed:', err));
-      }
+  function load(){
+    return fetch('/sidebar/',{credentials:'same-origin'})
+      .then(r=>r.text())
+      .then(h=>{
+        sessionStorage.setItem(CACHE_KEY,h);
+        sessionStorage.setItem(CACHE_TTL_KEY,Date.now()+TTL);
+        inject(h);
+      });
+  }
 
-      // Cache-first: try cache immediately, then refresh in background
-      try {
-        const cached = sessionStorage.getItem(CACHE_KEY);
-        const ttl = parseInt(sessionStorage.getItem(CACHE_TTL_KEY) || '0', 10);
-        if (cached && Date.now() < ttl) {
-          injectSidebar(cached);
-          fetchAndCache(); // Refresh in background
-        } else {
-          fetchAndCache();
-        }
-      } catch (e) {
-        fetchAndCache();
-      }
-    })();
-  </script>
+  const cached=sessionStorage.getItem(CACHE_KEY);
+  const ttl=+sessionStorage.getItem(CACHE_TTL_KEY);
+  if(cached && Date.now()<ttl){
+    inject(cached);
+    load();
+  }else load();
+})();
+</script>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

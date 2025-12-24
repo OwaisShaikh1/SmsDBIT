@@ -4,44 +4,66 @@ Frontend HTML views are in sms_portal/frontend_urls.py
 """
 
 from django.urls import path
-from .views import (
-    # SMS API
-    send_sms_api,
-    refresh_sms_status,
-    get_send_page_stats,
-    
-    # Contacts API
-    get_contacts,
-    
-    # Groups API
+from .myviews.send_sms_api import (send_sms_api, get_send_page_stats, refresh_sms_status)
+from .myviews.contacts_api import get_contacts
+from .myviews.groups_api import (
     get_groups,
     create_group,
     get_group_contacts,
     add_contacts_to_group,
     import_contacts_excel,
     delete_contact_from_group,
-    
-    # Templates API
-    get_templates,
-    
-    # Campaigns API
-    get_campaigns,
-    create_campaign,
-    
-    # Reports API
-    reports_dashboard,
-    reports_generate,
-    
-    # User Management API
-    create_user_view,
-    delete_user_view,
-    
-    # Settings API
+)
+from .myviews.Campaign_api import (get_campaigns, create_campaign)
+from .myviews.Reports_api import (reports_dashboard, reports_generate)
+from .myviews.templates_api import (get_templates)
+from .myviews.user_management_api import (create_user_view, delete_user_view)
+from .myviews.Settings_api import (
     get_settings,
     update_general_settings,
     update_sms_settings,
     test_sms_settings,
 )
+#from .views import (
+    # SMS API
+    #send_sms_api,
+    #refresh_sms_status,
+    #get_send_page_stats,
+    
+    
+
+    # Contacts API
+    #get_contacts,
+    
+    # Groups API
+    #get_groups,
+    #create_group,
+    #get_group_contacts,
+    #add_contacts_to_group,
+    #import_contacts_excel,
+    #delete_contact_from_group,
+    
+    # Templates API
+    #get_templates,
+    
+    # Campaigns API
+    #get_campaigns,
+    #create_campaign,
+    
+    # Reports API
+    #reports_dashboard,
+    #reports_generate,
+    
+    # User Management API
+    # create_user_view,
+    #delete_user_view,
+    
+    # Settings API
+    #get_settings,
+    #update_general_settings,
+    #update_sms_settings,
+    #test_sms_settings,
+#)
 
 urlpatterns = [
     # SMS Sending API
