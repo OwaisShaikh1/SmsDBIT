@@ -105,7 +105,9 @@ function normalize(name){
 
 /* ===================== INIT ===================== */
 document.addEventListener("DOMContentLoaded",()=>{
-  fetchJSON('/templates/',d=>populate('templateSelect',templates=d,'title'));
+  fetchJSON('/templates/',d=>{
+    populate('templateSelect',templates=d,'title');
+  });
   fetchJSON('/groups/',d=>populate('groupSelect',groups=d,'name'));
   fetchJSON('/campaigns/',d=>populate('campaignSelect',d,'title'));
   fetchJSON('/send/stats/',s=>{
@@ -151,22 +153,43 @@ function renderVariableInputs(schema){
   variableInputs.innerHTML = '';
   if (!schema) return;
 
-  Object.keys(schema).forEach(originalName => {
-    const normalized = normalize(originalName);
-
+  Object.keys(schema).forEach(varName => {
+    const varConfig = schema[varName];
+    const dataType = varConfig.type || 'string';
+    
+    // Map data types to HTML input types
+    let inputType = 'text';
+    if (dataType === 'float' || dataType === 'number' || dataType === 'integer') {
+      inputType = 'number';
+    } else if (dataType === 'date') {
+      inputType = 'date';
+    } else if (dataType === 'time') {
+      inputType = 'time';
+    } else if (dataType === 'email') {
+      inputType = 'email';
+    }
+    
+    // Add step attribute for float types
+    const stepAttr = dataType === 'float' ? 'step="0.01"' : '';
+    const minAttr = varConfig.min !== undefined ? `min="${varConfig.min}"` : '';
+    const maxAttr = varConfig.max !== undefined ? `max="${varConfig.max}"` : '';
+    const maxLengthAttr = varConfig.max_length ? `maxlength="${varConfig.max_length}"` : '';
+    const requiredAttr = varConfig.required ? 'required' : '';
+    
     variableInputs.insertAdjacentHTML('beforeend', `
       <div class="col-md-4">
-        <label class="form-label">${originalName}</label>
-        <input class="form-control"
-          oninput="setVar('${originalName}', this.value)">
+        <label class="form-label">${varName} <small class="text-muted">(${dataType})</small></label>
+        <input class="form-control" type="${inputType}" ${stepAttr} ${minAttr} ${maxAttr} ${maxLengthAttr} ${requiredAttr}
+          placeholder="Enter ${varName}"
+          oninput="setVar('${varName}', this.value)">
       </div>
     `);
   });
 }
 
 
-function setVar(originalName, value) {
-  variableValues[originalName] = value;
+function setVar(varName, value) {
+  variableValues[varName] = value;
   renderPreview();
 }
 
@@ -177,7 +200,7 @@ function applyVars(text) {
 
   Object.entries(variableValues).forEach(([key, value]) => {
     const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`\\\\[\\s*${escaped}\\s*\\]\\]`, 'gi');
+    const regex = new RegExp(`\\{#${escaped}#\\}`, 'g');
     out = out.replace(regex, value ?? '');
   });
 

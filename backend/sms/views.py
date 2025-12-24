@@ -39,10 +39,6 @@ logger = logging.getLogger(__name__)
 
 
 
-# =========================================================================
-# CONTACTS MANAGEMENT API
-# =========================================================================
-
 @login_required
 def get_contacts(request):
     """
@@ -84,30 +80,3 @@ def get_contacts(request):
         })
 
     return JsonResponse(contacts_list, safe=False)
-
-
-
-
-
-
-
-
-
-
-
-
-from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth.decorators import login_required
-from sms.models import Campaign
-
-
-
-
-
-
-
-
-# =========================================================================
-# DASHBOARD STATISTICS API
-# =========================================================================
-
