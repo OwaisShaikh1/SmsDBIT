@@ -1,7 +1,4 @@
-"""
-API Views for SMS Portal
-Handles all JSON API endpoints for the SMS management system.
-"""
+# ALL VIEWS MIGRATED TO MYVIEWS FOLDER#
 
 import json
 import logging

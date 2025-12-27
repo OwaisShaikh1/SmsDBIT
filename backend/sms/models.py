@@ -236,6 +236,8 @@ class Campaign(models.Model):
 class SMSMessage(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='sms_messages')
     campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, null=True, blank=True, related_name="messages")
+    template = models.ForeignKey(Template, on_delete=models.SET_NULL, null=True, blank=True, related_name="messages")
+    title = models.CharField(max_length=255, blank=True, null=True, help_text="Template title at time of sending")
 
     message_text = models.TextField()
     recipients = models.JSONField(default=list)

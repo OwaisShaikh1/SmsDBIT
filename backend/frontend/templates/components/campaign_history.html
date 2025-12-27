@@ -1,5 +1,74 @@
 <!-- Campaign History Component -->
 
+<style>
+  .error-code-tooltip {
+    position: relative;
+    cursor: help;
+    text-decoration: underline dotted;
+  }
+  
+  .error-code-tooltip .tooltip-content {
+    visibility: hidden;
+    position: absolute;
+    z-index: 1000;
+    background-color: #1f2937;
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: normal;
+    white-space: nowrap;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    transition: opacity 0.2s, visibility 0.2s;
+  }
+  
+  .error-code-tooltip .tooltip-content::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #1f2937 transparent transparent transparent;
+  }
+  
+  .error-code-tooltip:hover .tooltip-content {
+    visibility: visible;
+    opacity: 1;
+  }
+  
+  /* Table column width optimization */
+  .recipients-table th:nth-child(1) { width: 4%; min-width: 30px; }  /* # */
+  .recipients-table th:nth-child(2) { width: 18%; min-width: 100px; }  /* Name */
+  .recipients-table th:nth-child(3) { width: 12%; min-width: 90px; }  /* Phone */
+  .recipients-table th:nth-child(4) { width: 15%; min-width: 100px; }  /* Message ID */
+  .recipients-table th:nth-child(5) { width: 9%; min-width: 70px; }  /* Status */
+  .recipients-table th:nth-child(6) { width: 11%; min-width: 80px; }  /* Submitted */
+  .recipients-table th:nth-child(7) { width: 11%; min-width: 80px; }  /* Delivered */
+  .recipients-table th:nth-child(8) { width: 15%; min-width: 120px; }  /* Error */
+  
+  .recipients-table td {
+    font-size: 0.8rem;
+    padding: 6px 8px !important;
+    vertical-align: middle;
+  }
+  
+  .recipients-table th {
+    font-size: 0.8rem;
+    padding: 8px !important;
+  }
+  
+  .recipients-table .text-muted {
+    font-size: 0.75rem;
+    word-break: break-all;
+  }
+</style>
+
 <div class="card mb-4">
   <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
     <span>
@@ -61,14 +130,13 @@
               <tr class="collapse" id="camp{{ camp.id }}">
                 <td colspan="7" class="p-0">
                   <div class="bg-light p-3">
-                    <h6 class="fw-bold mb-3">Messages & Recipients</h6>
 
                     {% if camp.messages.exists %}
                       {% for msg in camp.messages.all %}
                         <div class="mb-4 border rounded p-3 bg-white shadow-sm">
                           <div class="d-flex justify-content-between align-items-center">
                             <div class="fw-semibold">
-                              📨 Message ({{ msg.total_recipients }} recipients)
+                              📨 {{msg.title}} ({{ msg.total_recipients }} recipients)
                               <span class="text-muted small">
                                 — {{ msg.sent_at|default:msg.created_at|date:"d M Y, H:i" }}
                               </span>
@@ -100,7 +168,7 @@
                                   <span class="badge bg-danger ms-1">Failed: {{ msg.failed_deliveries }}</span>
                                 </small>
                               </div>
-                              <table class="table table-sm table-bordered align-middle mb-0" id="recipients-table-{{ msg.id }}">
+                              <table class="table table-sm table-bordered align-middle mb-0 recipients-table" id="recipients-table-{{ msg.id }}">
                                 <thead class="table-light">
                                   <tr>
                                     <th>#</th>
@@ -145,8 +213,10 @@
                                       <td>{{ r.delivery_time|date:"d M H:i"|default:"—" }}</td>
                                       <td>
                                         {% if r.error_code and r.error_code != 0 %}
-                                          <small class="text-danger">
+                                          <small class="text-danger error-code-tooltip" 
+                                                 data-error-code="{{ r.error_code }}">
                                             <strong>Code {{ r.error_code }}:</strong> {{ r.error_description|default:"Error" }}
+                                            <span class="tooltip-content"></span>
                                           </small>
                                         {% elif r.error_description and r.error_description != 'Success' %}
                                           <small class="text-danger">{{ r.error_description }}</small>
@@ -183,6 +253,58 @@
 </div>
 
 <script>
+// SMS Error Code Dictionary
+const SMS_ERROR_CODES = {
+  "0": "Success (message successfully submitted)",
+  "1": "Account details cannot be blank",
+  "3": "SenderId cannot be blank",
+  "4": "Message cannot be blank",
+  "5": "Message properties cannot be blank",
+  "6": "Internal Server Error Occurred",
+  "7": "Invalid ApiCredentials",
+  "9": "User account locked, contact your Administrator",
+  "10": "Unauthorized API access",
+  "11": "Unauthorized IP address",
+  "12": "Message length violation",
+  "13": "Invalid mobile numbers",
+  "15": "Invalid SenderId",
+  "17": "Invalid groupid",
+  "18": "Group Not Allowed in BulkSMS",
+  "19": "Invalid schedule date",
+  "20": "Message or mobile number cannot be blank",
+  "23": "Parameter missing",
+  "24": "Invalid template or template mismatch",
+  "26": "Invalid date range",
+  "28": "Group not found",
+  "29": "Record already exist",
+  "33": "Queue Connection Closed",
+  "34": "Unable to create campaign at this time please try again later",
+  "36": "Error While Publishing DLR",
+  "41": "Report Not Found",
+  "42": "Max Mobile Number limit exceeded",
+  "43": "Invalid Validity Period",
+  "1025": "Insufficient Credits",
+  "1026": "Invalid Template while message processing",
+  "1029": "Invalid SenderId while message processing",
+  "1044": "Spam Message Detected",
+  "1047": "User account inactive",
+  "1081": "Country not found in master data / DND number",
+  "1082": "Network not found",
+  "1083": "Price not found",
+  "1084": "Expired",
+  "1085": "Route not found",
+  "1086": "Failover route not found",
+  "1087": "Failover expired",
+  "1088": "Failover price not found",
+  "1089": "Failover failed",
+  "1090": "Account Validity Expired",
+  "1091": "Encoding Error",
+  "1092": "OA/DA Error",
+  "1093": "Queue Message Expired",
+  "1094": "Invalid HTTP gateway config",
+  "1095": "HTTP Request Exception"
+};
+
 // Store and restore expanded campaign sections
 (function() {
   // On page load, restore expanded campaigns
@@ -216,6 +338,18 @@
         expanded.push(campId);
         sessionStorage.setItem('expandedCampaigns', JSON.stringify(expanded));
       }
+      
+      // Add tooltips to error codes when section expands
+      setTimeout(() => {
+        document.querySelectorAll('[data-error-code]').forEach(el => {
+          const errorCode = el.getAttribute('data-error-code');
+          const description = SMS_ERROR_CODES[errorCode] || SMS_ERROR_CODES[String(errorCode)] || 'Unknown error code';
+          const tooltipSpan = el.querySelector('.tooltip-content');
+          if (tooltipSpan) {
+            tooltipSpan.textContent = description;
+          }
+        });
+      }, 100);
     }
   });
   
@@ -227,6 +361,18 @@
       sessionStorage.setItem('expandedCampaigns', JSON.stringify(filtered));
     }
   });
+  
+  // Add tooltips to error codes on initial load
+  setTimeout(() => {
+    document.querySelectorAll('[data-error-code]').forEach(el => {
+      const errorCode = el.getAttribute('data-error-code');
+      const description = SMS_ERROR_CODES[errorCode] || SMS_ERROR_CODES[String(errorCode)] || 'Unknown error code';
+      const tooltipSpan = el.querySelector('.tooltip-content');
+      if (tooltipSpan) {
+        tooltipSpan.textContent = description;
+      }
+    });
+  }, 500);
 })();
 
 async function refreshMessageStatus(messageId, buttonElement) {

@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 import json
 import logging
-from ..models import Campaign, SMSRecipient, SMSMessage, SMSUsageStats
+from ..models import Campaign, SMSRecipient, SMSMessage, SMSUsageStats, Template
 from ..services import MySMSMantraService
 logger = logging.getLogger(__name__)
 # =========================================================================
@@ -44,15 +44,34 @@ def send_sms_api(request):
                 status="active"
             )
 
+        # Get template if provided
+        template = None
+        template_title = None
+        if template_id:
+            logger.info(f"Template ID received: {template_id}, type: {type(template_id)}")
+            try:
+                # Allow access to templates from any user (admin-created templates should be accessible)
+                template = Template.objects.get(id=template_id)
+                template_title = template.title
+                logger.info(f"Template found: {template.title} (ID: {template.id})")
+            except Template.DoesNotExist:
+                logger.warning(f"Template with ID {template_id} not found")
+        else:
+            logger.info("No template_id provided in request")
+
         # Create master SMSMessage record
         sms_message = SMSMessage.objects.create(
             user=request.user,
             campaign=campaign,
+            template=template,
+            title=template_title,
             message_text=message,
             recipients=recipients,
             total_recipients=len(recipients),
             status='pending'
         )
+        
+        logger.info(f"Created SMSMessage ID {sms_message.id}: template={sms_message.template_id}, title={sms_message.title}")
 
         logger.info(f"Sending SMS to {len(recipients)} recipients under campaign {campaign.title}")
 

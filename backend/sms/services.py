@@ -232,6 +232,7 @@ class MySMSMantraService:
                         "Status": msg_data.get("Status"),
                         "SubmitDate": msg_data.get("SubmitDate"),
                         "DoneDate": msg_data.get("DoneDate"),
+                        "ErrorCode": msg_data.get("ErrorCode"),  # Delivery error code from Data object
                     }
                 else:
                     return {
@@ -252,11 +253,14 @@ class MySMSMantraService:
         Refresh delivery status for all recipients of a message.
         Makes individual API calls to api/v2/MessageStatus for each recipient.
         Updates status to delivered/failed based on API response.
+        
+        Optimization: Only checks pending messages, skips already delivered ones.
         """
         try:
             sms_message = SMSMessage.objects.get(id=sms_message_id)
             recipients = list(sms_message.recipient_logs.filter(
-                api_message_id__isnull=False
+                api_message_id__isnull=False,
+                status__in=['pending', 'sent', 'submitted', 'failed']  # Only check non-final statuses
             ).exclude(api_message_id=''))
 
             if not recipients:
@@ -285,6 +289,14 @@ class MySMSMantraService:
                 if result.get("success"):
                     status_text = (result.get("Status") or "").upper()
                     
+                    # Get error code from API response Data.ErrorCode field
+                    api_error_code = result.get("ErrorCode")
+                    if api_error_code is not None:
+                        try:
+                            api_error_code = int(api_error_code)
+                        except (ValueError, TypeError):
+                            api_error_code = None
+                    
                     if status_text in delivered_codes:
                         recipient.status = "delivered"
                         recipient.delivery_time = timezone.now()
@@ -293,20 +305,23 @@ class MySMSMantraService:
                         delivered_count += 1
                     elif status_text in failed_codes:
                         recipient.status = "failed"
+                        recipient.error_code = api_error_code if api_error_code is not None else 0
                         recipient.error_description = status_text
                         failed_count += 1
                     elif status_text in submitted_codes:
                         recipient.status = "pending"
+                        recipient.error_code = 0
                         pending_count += 1
                     else:
                         # Unknown status, keep as pending
                         recipient.status = "pending"
+                        recipient.error_code = api_error_code if api_error_code is not None else 0
                         recipient.error_description = f"Status: {status_text}"
                         pending_count += 1
                     
                     recipient.save()
                     updated += 1
-                    logger.debug(f"  📱 {recipient.phone_number}: {status_text} → {recipient.status}")
+                    logger.debug(f"  📱 {recipient.phone_number}: {status_text} → {recipient.status} [Code: {recipient.error_code}]")
                 else:
                     # API call failed for this recipient
                     error_msg = result.get("error", "Unknown error")
@@ -314,7 +329,9 @@ class MySMSMantraService:
                     if error_code is not None:
                         recipient.error_code = error_code
                         recipient.save()
-                    errors.append(f"{recipient.phone_number}: {error_msg}")
+                        errors.append(f"{recipient.phone_number}: [Code {error_code}] {error_msg}")
+                    else:
+                        errors.append(f"{recipient.phone_number}: {error_msg}")
                     logger.warning(f"  ⚠️ {recipient.phone_number}: API error - {error_msg}")
 
             # Update SMSMessage totals
