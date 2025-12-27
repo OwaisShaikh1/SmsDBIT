@@ -666,7 +666,8 @@ function applyMapping(){
   useExcelData=true;
   deletedContacts=[]; // Reset deleted contacts
   
-  // Hide manual variable inputs when using Excel data
+  // Clear manual variable inputs when using Excel data (prevents required field validation issues)
+  document.getElementById('variableInputs').innerHTML='';
   document.getElementById('variableInputs').style.display='none';
   
   // Show personalized badge
@@ -912,12 +913,13 @@ function renderVariableInputs(schemaInput){
     const minAttr = varConfig.min !== undefined ? `min="${varConfig.min}"` : '';
     const maxAttr = varConfig.max !== undefined ? `max="${varConfig.max}"` : '';
     const maxLengthAttr = varConfig.max_length ? `maxlength="${varConfig.max_length}"` : '';
-    const requiredAttr = varConfig.required ? 'required' : '';
+    // Note: removed requiredAttr to prevent form validation issues when inputs are hidden
     
+    // Don't add required attribute - it causes issues when inputs are hidden
     variableInputs.insertAdjacentHTML('beforeend', `
       <div class="col-md-4">
         <label class="form-label">${varName} <small class="text-muted">(${dataType})</small></label>
-        <input class="form-control" type="${inputType}" ${stepAttr} ${minAttr} ${maxAttr} ${maxLengthAttr} ${requiredAttr}
+        <input class="form-control" type="${inputType}" ${stepAttr} ${minAttr} ${maxAttr} ${maxLengthAttr}
           placeholder="Enter ${varName}"
           oninput="setVar('${varName}', this.value)">
       </div>
