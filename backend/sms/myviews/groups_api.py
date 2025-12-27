@@ -339,4 +339,32 @@ def delete_contact_from_group(request, contact_id):
         return JsonResponse({"error": "Contact not found"}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+@login_required
+def delete_group(request, group_id):
+    """Delete a group. Admin can delete any group, teachers can only delete their own."""
+    if request.method != 'DELETE':
+        return JsonResponse({"error": "DELETE method required"}, status=405)
+    
+    try:
+        group = Group.objects.get(id=group_id)
+        
+        # Permission check
+        if group.is_universal and request.user.role != 'admin':
+            return JsonResponse({"error": "Only admin can delete universal groups"}, status=403)
+        
+        if not group.is_universal and group.teacher != request.user and request.user.role != 'admin':
+            return JsonResponse({"error": "Permission denied"}, status=403)
+        
+        group_name = group.name
+        group.delete()
+        
+        return JsonResponse({
+            "success": True,
+            "message": f"Group '{group_name}' deleted successfully"
+        })
+        
+    except Group.DoesNotExist:
+        return JsonResponse({"error": "Group not found"}, status=404)
+    except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)

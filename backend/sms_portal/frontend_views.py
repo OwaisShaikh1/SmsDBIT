@@ -120,22 +120,48 @@ def DashboardView(request):
     user = request.user
 
     if user.role == 'admin':
+        # Admin sees all campaigns and system-wide stats
         campaigns = Campaign.objects.prefetch_related('messages__recipient_logs').order_by('-created_at')[:10]
+        messages_qs = SMSMessage.objects.all()
+        groups_count = Group.objects.count()
+        templates_count = Template.objects.count()
+        pending_templates = Template.objects.filter(status='pending').count()
     else:
+        # Teachers see only their own data + universal groups
         campaigns = Campaign.objects.filter(user=user).prefetch_related('messages__recipient_logs').order_by('-created_at')[:10]
+        messages_qs = SMSMessage.objects.filter(user=user)
+        groups_count = Group.objects.filter(Q(is_universal=True) | Q(teacher=user)).count()
+        templates_count = Template.objects.filter(Q(status='approved') | Q(user=user)).count()
+        pending_templates = Template.objects.filter(user=user, status='pending').count()
+
+    # Calculate stats based on role-filtered queryset
+    # Use Sum of successful_deliveries and failed_deliveries fields, not status filtering
+    from django.db.models import Sum
+    totals = messages_qs.aggregate(
+        total_delivered=Sum('successful_deliveries'),
+        total_failed=Sum('failed_deliveries')
+    )
+    total_sent = messages_qs.count()
+    total_delivered = totals['total_delivered'] or 0
+    total_failed = totals['total_failed'] or 0
+    success_rate = round((total_delivered / (total_delivered + total_failed) * 100), 1) if (total_delivered + total_failed) > 0 else 0
 
     stats = {
-        'total_sent': SMSMessage.objects.filter(user=user).count(),
-        'total_delivered': SMSMessage.objects.filter(user=user, status='sent').count(),
-        'total_failed': SMSMessage.objects.filter(user=user, status='failed').count(),
+        'total_sent': total_sent,
+        'total_delivered': total_delivered,
+        'total_failed': total_failed,
+        'success_rate': success_rate,
         'remaining_credits': getattr(getattr(user, "usage_stats", None), "remaining_credits", 0),
-        'monthly_stats': get_monthly_stats(SMSMessage.objects.filter(user=user))
+        'monthly_stats': get_monthly_stats(messages_qs)
     }
 
     context = {
         'stats': stats,
         'campaigns': campaigns,
         'API_BASE': '/api/',
+        'groups_count': groups_count,
+        'templates_count': templates_count,
+        'pending_templates': pending_templates,
     }
 
     return render(request, 'dashboard/dashboard.html', context)
@@ -213,10 +239,20 @@ class MessageHistoryView(FrontendTemplateView):
                 'messages__recipient_logs'
             ).order_by('-created_at')
 
-        # Calculate statistics
-        total_sent = sum(camp.total_sent or 0 for camp in campaigns)
-        total_delivered = sum(camp.total_delivered or 0 for camp in campaigns)
-        total_failed = sum(camp.total_failed or 0 for camp in campaigns)
+        # Calculate statistics from SMSMessage fields (same source as dashboard)
+        from django.db.models import Sum
+        if user.role == 'admin':
+            messages_qs = SMSMessage.objects.all()
+        else:
+            messages_qs = SMSMessage.objects.filter(user=user)
+        
+        totals = messages_qs.aggregate(
+            total_delivered=Sum('successful_deliveries'),
+            total_failed=Sum('failed_deliveries')
+        )
+        total_delivered = totals['total_delivered'] or 0
+        total_failed = totals['total_failed'] or 0
+        total_sent = total_delivered + total_failed
         success_rate = round((total_delivered / total_sent * 100), 1) if total_sent > 0 else 0
 
         context['campaigns'] = campaigns

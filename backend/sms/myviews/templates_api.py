@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.db.models import Q
 from sms.models import Template
+from sms.serializers import TemplateSerializer
 
 # =========================================================================
 # TEMPLATES API
@@ -20,4 +21,6 @@ def get_templates(request):
             Q(status='approved')
         ).distinct()
 
-    return JsonResponse(list(templates.values()), safe=False)
+    # Use serializer to properly handle JSONField (variable_schema)
+    serializer = TemplateSerializer(templates, many=True)
+    return JsonResponse(serializer.data, safe=False)

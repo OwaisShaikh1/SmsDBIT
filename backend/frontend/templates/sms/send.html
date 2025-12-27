@@ -8,12 +8,54 @@
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <!-- SheetJS for Excel parsing -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 
   <style>
     body { background:#f8f9fa }
     .header { background:#fff;padding:15px 25px;box-shadow:0 2px 4px rgba(0,0,0,.05) }
     .card { border:none;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,.05) }
     .preview-table th,.preview-table td{font-size:.9rem;vertical-align:middle}
+    .preview-table .btn-delete{opacity:0.6;transition:opacity 0.2s}
+    .preview-table tr:hover .btn-delete{opacity:1}
+    .import-section{border:2px dashed #dee2e6;border-radius:10px;padding:20px;background:#fafbfc;transition:all 0.3s}
+    .import-section.has-data{border-color:#198754;background:#f0fff4}
+    .import-section.disabled-look{opacity:0.6;pointer-events:none}
+    .mapping-card{background:linear-gradient(135deg,#f8f9fa 0%,#e9ecef 100%);border-radius:10px}
+    .variable-badge{background:#e7f1ff;color:#0d6efd;padding:2px 8px;border-radius:4px;font-size:0.8rem}
+    .excel-preview-mini{font-size:0.75rem}
+    .excel-preview-mini th{background:#f1f3f4}
+    .undo-bar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:1050;animation:slideUp 0.3s ease}
+    @keyframes slideUp{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+    
+    /* Step indicator styles */
+    .step-indicator{display:flex;gap:8px;margin-bottom:1.5rem}
+    .step{display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:20px;font-size:0.85rem;background:#e9ecef;color:#6c757d;transition:all 0.3s}
+    .step.active{background:#0d6efd;color:#fff}
+    .step.completed{background:#198754;color:#fff}
+    .step-num{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:0.75rem}
+    .step.active .step-num,.step.completed .step-num{background:rgba(255,255,255,0.3)}
+    
+    /* Source toggle */
+    .source-toggle{display:flex;background:#e9ecef;border-radius:8px;padding:4px;margin-bottom:1rem}
+    .source-toggle .btn{flex:1;border:none;border-radius:6px;padding:10px 16px;font-weight:500;transition:all 0.2s}
+    .source-toggle .btn.active{background:#fff;box-shadow:0 2px 4px rgba(0,0,0,0.1)}
+    .source-toggle .btn:not(.active){background:transparent;color:#6c757d}
+    .source-toggle .btn:not(.active):hover{color:#495057}
+    
+    /* Required field indicator */
+    .form-label.required::after{content:" *";color:#dc3545}
+    
+    /* Fade animation */
+    .fade-in{animation:fadeIn 0.3s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+    
+    /* Loading spinner */
+    .spinner-border-sm{width:1rem;height:1rem;border-width:0.15em}
+    
+    /* Alert improvements */
+    .alert-hint{background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:12px 16px;font-size:0.9rem}
+    .alert-hint i{color:#856404}
   </style>
 </head>
 
@@ -52,29 +94,154 @@
         <div class="card p-4 mb-5">
           <form id="smsForm">
 
-            <div class="mb-3">
-              <label class="form-label">Campaign</label>
-              <select id="campaignSelect" class="form-select"></select>
+            <!-- Step Indicator -->
+            <div class="step-indicator">
+              <div class="step" id="step1"><span class="step-num">1</span>Setup</div>
+              <div class="step" id="step2"><span class="step-num">2</span>Recipients</div>
+              <div class="step" id="step3"><span class="step-num">3</span>Preview & Send</div>
             </div>
 
-            <div class="mb-3">
-              <label class="form-label">Template</label>
-              <select id="templateSelect" class="form-select"></select>
+            <!-- Step 1: Campaign & Template -->
+            <div class="mb-4 pb-3 border-bottom">
+              <h6 class="text-muted mb-3"><i class="fas fa-cog me-2"></i>Step 1: Campaign & Template Setup</h6>
+              
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label">Campaign <small class="text-muted">(optional)</small></label>
+                  <div class="input-group">
+                    <select id="campaignSelect" class="form-select"></select>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#createCampaignModal">
+                      <i class="fas fa-plus"></i>
+                    </button>
+                  </div>
+                </div>
+                
+                <div class="col-md-6">
+                  <label class="form-label required">Template</label>
+                  <select id="templateSelect" class="form-select"></select>
+                  <div id="templateHint" class="form-text text-danger" style="display:none">
+                    <i class="fas fa-exclamation-circle me-1"></i>Please select a template first
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Template Variables Preview -->
+              <div id="templateVarsInfo" class="mt-3" style="display:none">
+                <small class="text-muted">
+                  <i class="fas fa-code me-1"></i>Template variables: 
+                  <span id="templateVarsList" class="text-primary"></span>
+                </small>
+              </div>
             </div>
 
-            <div class="mb-3">
-              <label class="form-label">Group</label>
-              <select id="groupSelect" class="form-select"></select>
+            <!-- Step 2: Recipients Source -->
+            <div class="mb-4 pb-3 border-bottom" id="recipientsSection">
+              <h6 class="text-muted mb-3"><i class="fas fa-users me-2"></i>Step 2: Select Recipients</h6>
+              
+              <!-- Source Toggle -->
+              <div class="source-toggle">
+                <button type="button" class="btn active" id="btnSourceGroup" onclick="setRecipientSource('group')">
+                  <i class="fas fa-users me-2"></i>From Contact Group
+                </button>
+                <button type="button" class="btn" id="btnSourceExcel" onclick="setRecipientSource('excel')">
+                  <i class="fas fa-file-excel me-2"></i>Import from Excel/CSV
+                </button>
+              </div>
+              
+              <!-- Group Selection -->
+              <div id="groupSourceSection" class="fade-in">
+                <label class="form-label">Select Group</label>
+                <select id="groupSelect" class="form-select">
+                  <option value="">-- Select a contact group --</option>
+                </select>
+              </div>
+              
+              <!-- Excel Import Section -->
+              <div id="excelSourceSection" class="fade-in" style="display:none">
+                <div id="importSection" class="import-section">
+                  <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div>
+                      <h6 class="mb-1"><i class="fas fa-file-excel text-success me-2"></i>Upload Excel/CSV File</h6>
+                      <small class="text-muted">Include phone numbers and personalized data columns</small>
+                    </div>
+                    <span id="importStatus" class="badge bg-secondary">No file selected</span>
+                  </div>
+                  
+                  <div id="noTemplateWarning" class="alert alert-hint mb-3" style="display:none">
+                    <i class="fas fa-lightbulb me-2"></i>
+                    <strong>Tip:</strong> Select a template first to auto-map your Excel columns to template variables.
+                  </div>
+                  
+                  <div class="row g-2 align-items-center">
+                    <div class="col-md-8">
+                      <input type="file" class="form-control" id="excelFileInput" accept=".xlsx,.xls,.csv">
+                    </div>
+                    <div class="col-md-4 d-flex gap-2">
+                      <button type="button" class="btn btn-success flex-grow-1" onclick="parseExcelFile()" id="importBtn">
+                        <i class="fas fa-upload me-1"></i>Import
+                      </button>
+                      <button type="button" class="btn btn-outline-secondary" onclick="clearExcelImport()" title="Clear import" id="clearImportBtn" style="display:none">
+                        <i class="fas fa-times"></i>
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <!-- Download Template Link -->
+                  <div class="mt-2">
+                    <small class="text-muted">
+                      <i class="fas fa-download me-1"></i>
+                      <a href="#" onclick="downloadSampleExcel(); return false;" class="text-decoration-none">Download sample template</a>
+                    </small>
+                  </div>
+                </div>
+              </div>
             </div>
 
+            <!-- Variable Mapping (shown after Excel import) -->
+            <div id="mappingSection" class="mb-4" style="display:none;">
+              <div class="card mapping-card p-3">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <h6 class="mb-0"><i class="fas fa-link me-2 text-primary"></i>Map Excel Columns to Template Variables</h6>
+                  <button type="button" class="btn btn-sm btn-primary" onclick="applyMapping()" id="applyMappingBtn">
+                    <i class="fas fa-check me-1"></i>Apply Mapping
+                  </button>
+                </div>
+                <p class="text-muted small mb-3">Match each template variable to the corresponding column in your Excel file.</p>
+                <div id="mappingInputs" class="row g-3"></div>
+              </div>
+            </div>
+
+            <!-- Manual Variable Inputs (for group-based sending) -->
             <div id="variableInputs" class="row g-3 mb-4"></div>
 
-            <div class="mb-3">
-              <h6>Preview</h6>
-              <table class="table table-bordered preview-table">
-                <thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Message</th></tr></thead>
-                <tbody id="previewBody"></tbody>
-              </table>
+            <!-- Step 3: Preview Section -->
+            <div class="mb-4" id="previewSection">
+              <h6 class="text-muted mb-3"><i class="fas fa-eye me-2"></i>Step 3: Preview & Send</h6>
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <div>
+                  <span id="previewCount" class="badge bg-primary me-2">0 recipients</span>
+                  <span id="previewMsgType" class="badge bg-info" style="display:none">Personalized</span>
+                </div>
+                <div>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="undoAllDeletes()" id="undoAllBtn" style="display:none">
+                    <i class="fas fa-undo me-1"></i>Restore All (<span id="deletedCount">0</span>)
+                  </button>
+                </div>
+              </div>
+              
+              <div id="previewEmpty" class="text-center py-4 text-muted">
+                <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
+                <span>Select a template and recipients to see preview</span>
+              </div>
+              
+              <div class="table-responsive" id="previewTableContainer" style="max-height:400px;overflow-y:auto;display:none">
+                <table class="table table-bordered table-hover preview-table mb-0">
+                  <thead class="table-light sticky-top">
+                    <tr><th width="50">#</th><th>Phone</th><th>Message</th><th width="50"></th></tr>
+                  </thead>
+                  <tbody id="previewBody"></tbody>
+                </table>
+              </div>
             </div>
 
             <div class="text-end">
@@ -91,22 +258,101 @@
   </div>
 </div>
 
+<!-- Create Campaign Modal -->
+<div class="modal fade" id="createCampaignModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Create New Campaign</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Campaign Name</label>
+          <input type="text" class="form-control" id="newCampaignName" placeholder="e.g., Parent Meeting Reminder">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="createCampaign()">Create</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <meta name="csrf-token" content="{{ csrf_token }}">
 
 <script>
 /* ===================== STATE ===================== */
 let templates=[],groups=[],contacts=[],selectedTemplate=null;
 let variableValues={};
+let excelData=[];       // Raw data from Excel
+let excelColumns=[];    // Column headers from Excel
+let columnMapping={};   // Maps template variables to Excel columns
+let useExcelData=false; // Flag to indicate if using per-contact Excel data
+let deletedContacts=[]; // Stack of deleted contacts for undo
+let recipientSource='group'; // 'group' or 'excel'
+let templateVariables=[]; // Extracted template variables
 
 /* ===================== UTILS ===================== */
 function normalize(name){
   return name.toLowerCase().replace(/[\s_]+/g,'');
 }
 
+// Extract variables from template content
+function extractTemplateVariables(template){
+  if(!template) return [];
+  
+  let vars=[];
+  
+  // First try variable_schema
+  if(template.variable_schema && typeof template.variable_schema === 'object' && Object.keys(template.variable_schema).length>0){
+    vars=Object.keys(template.variable_schema);
+  }
+  // Then try content with regex
+  else if(template.content){
+    const regex = /\{#([^#]+)#\}/g;
+    let match;
+    const foundVars = [];
+    while((match = regex.exec(template.content)) !== null){
+      foundVars.push(match[1]);
+    }
+    vars=[...new Set(foundVars)];
+  }
+  
+  return vars;
+}
+
+// Update step indicator
+function updateSteps(){
+  const step1=document.getElementById('step1');
+  const step2=document.getElementById('step2');
+  const step3=document.getElementById('step3');
+  
+  // Reset all
+  [step1,step2,step3].forEach(s=>{s.className='step'});
+  
+  // Step 1 complete if template selected
+  if(selectedTemplate){
+    step1.classList.add('completed');
+    step2.classList.add('active');
+  }else{
+    step1.classList.add('active');
+    return;
+  }
+  
+  // Step 2 complete if recipients loaded
+  if(contacts.length>0){
+    step2.classList.add('completed');
+    step3.classList.add('active');
+  }
+}
+
 /* ===================== INIT ===================== */
 document.addEventListener("DOMContentLoaded",()=>{
   fetchJSON('/templates/',d=>{
-    populate('templateSelect',templates=d,'title');
+    templates=d;
+    populate('templateSelect',templates,'title');
   });
   fetchJSON('/groups/',d=>populate('groupSelect',groups=d,'name'));
   fetchJSON('/campaigns/',d=>populate('campaignSelect',d,'title'));
@@ -115,6 +361,8 @@ document.addEventListener("DOMContentLoaded",()=>{
     remainingCredits.textContent=s.remaining_credits;
     deliveryRate.textContent=s.delivery_rate+'%';
   });
+  
+  updateSteps();
 });
 
 /* ===================== FETCH ===================== */
@@ -127,35 +375,525 @@ function fetchJSON(url,cb){
 /* ===================== UI ===================== */
 function populate(id,data,label){
   const el=document.getElementById(id);
-  el.innerHTML='<option value="">-- Select --</option>';
+  const firstOption = id === 'groupSelect' ? '-- Select a contact group --' : '-- Select --';
+  el.innerHTML=`<option value="">${firstOption}</option>`;
   data.forEach(i=>el.insertAdjacentHTML('beforeend',
     `<option value="${i.id}">${i[label]}</option>`));
+}
+
+/* ===================== RECIPIENT SOURCE TOGGLE ===================== */
+function setRecipientSource(source){
+  recipientSource=source;
+  
+  // Update toggle buttons
+  document.getElementById('btnSourceGroup').classList.toggle('active', source==='group');
+  document.getElementById('btnSourceExcel').classList.toggle('active', source==='excel');
+  
+  // Show/hide sections
+  document.getElementById('groupSourceSection').style.display = source==='group' ? 'block' : 'none';
+  document.getElementById('excelSourceSection').style.display = source==='excel' ? 'block' : 'none';
+  
+  // Clear data when switching
+  if(source==='group'){
+    clearExcelImport();
+    // Reload group contacts if group was selected
+    if(groupSelect.value){
+      fetchJSON(`/groups/${groupSelect.value}/contacts/`,d=>{
+        contacts=d.contacts||[];
+        renderPreview();
+      });
+    }
+  }else{
+    contacts=[];
+    groupSelect.value='';
+    renderPreview();
+  }
+  
+  // Show warning if no template selected for excel
+  document.getElementById('noTemplateWarning').style.display = 
+    (source==='excel' && !selectedTemplate) ? 'block' : 'none';
+  
+  updateSteps();
+}
+
+/* ===================== DOWNLOAD SAMPLE EXCEL ===================== */
+function downloadSampleExcel(){
+  // Create sample data based on template variables
+  const vars = templateVariables.length > 0 ? templateVariables : ['name', 'amount'];
+  const headers = ['phone_number', ...vars];
+  const sampleRow = ['9876543210', ...vars.map(v => `Sample ${v}`)];
+  
+  const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Recipients');
+  XLSX.writeFile(wb, 'sms_recipients_template.xlsx');
+}
+
+/* ===================== CREATE CAMPAIGN ===================== */
+async function createCampaign(){
+  const name=document.getElementById('newCampaignName').value.trim();
+  if(!name) return alert('Please enter a campaign name');
+  
+  try{
+    const r=await fetch('/api/campaigns/new/',{
+      method:'POST',
+      credentials:'include',
+      headers:{
+        'Content-Type':'application/json',
+        'X-CSRFToken':document.querySelector('[name=csrf-token]').content
+      },
+      body:JSON.stringify({title:name})
+    });
+    const campaign=await r.json();
+    if(!r.ok) throw campaign;
+    
+    // Add to dropdown and select it
+    const opt=document.createElement('option');
+    opt.value=campaign.id;
+    opt.textContent=campaign.title;
+    opt.selected=true;
+    campaignSelect.appendChild(opt);
+    
+    // Close modal and clear input
+    bootstrap.Modal.getInstance(document.getElementById('createCampaignModal')).hide();
+    document.getElementById('newCampaignName').value='';
+    
+    alert('Campaign created successfully!');
+  }catch(e){
+    alert('Failed to create campaign: '+(e.error||'Unknown error'));
+  }
+}
+
+/* ===================== EXCEL IMPORT ===================== */
+function parseExcelFile(){
+  const fileInput=document.getElementById('excelFileInput');
+  const file=fileInput.files[0];
+  if(!file) return alert('Please select a file first');
+  
+  // Show loading state
+  const importBtn = document.getElementById('importBtn');
+  const originalText = importBtn.innerHTML;
+  importBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Importing...';
+  importBtn.disabled = true;
+  
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const data=new Uint8Array(e.target.result);
+      const workbook=XLSX.read(data,{type:'array'});
+      const sheetName=workbook.SheetNames[0];
+      const sheet=workbook.Sheets[sheetName];
+      const jsonData=XLSX.utils.sheet_to_json(sheet,{defval:''});
+      
+      if(!jsonData.length){
+        importBtn.innerHTML = originalText;
+        importBtn.disabled = false;
+        return alert('No data found in the file');
+      }
+      
+      // Get column headers
+      excelColumns=Object.keys(jsonData[0]);
+      excelData=jsonData;
+      deletedContacts=[]; // Reset deleted
+      
+      // Find phone column automatically
+      const phoneColCandidates=['phone','mobile','phone_number','mobile_number','contact','phonenumber','phone no','mobile no'];
+      let phoneCol=excelColumns.find(c=>phoneColCandidates.includes(c.toLowerCase().replace(/[\s_-]/g,'')));
+      
+      if(!phoneCol){
+        // Try partial match
+        phoneCol=excelColumns.find(c=>c.toLowerCase().includes('phone')||c.toLowerCase().includes('mobile'));
+      }
+      
+      // Show mapping section
+      showMappingUI(phoneCol);
+      
+      // Update UI
+      document.getElementById('clearImportBtn').style.display = 'inline-block';
+      importBtn.innerHTML = '<i class="fas fa-check me-1"></i>Imported';
+      importBtn.disabled = false;
+      
+      if(!phoneCol){
+        alert('⚠️ Could not auto-detect phone column.\nPlease select the correct column manually.');
+      }
+    }catch(err){
+      console.error(err);
+      alert('Error parsing file: '+err.message);
+      importBtn.innerHTML = originalText;
+      importBtn.disabled = false;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function showMappingUI(detectedPhoneCol){
+  const mappingSection=document.getElementById('mappingSection');
+  const mappingInputs=document.getElementById('mappingInputs');
+  mappingSection.style.display='block';
+  mappingInputs.innerHTML='';
+  
+  // Update import status
+  document.getElementById('importStatus').className='badge bg-success';
+  document.getElementById('importStatus').textContent=`${excelData.length} rows loaded`;
+  document.getElementById('importSection').classList.add('has-data');
+  
+  // Phone column mapping (required) - prominent card
+  mappingInputs.insertAdjacentHTML('beforeend',`
+    <div class="col-12">
+      <div class="card border-primary border-2 p-3 mb-2">
+        <div class="row align-items-center">
+          <div class="col-md-4">
+            <label class="form-label fw-bold mb-0">
+              <i class="fas fa-phone text-primary me-2"></i>Phone Number Column <span class="text-danger">*</span>
+            </label>
+          </div>
+          <div class="col-md-8">
+            <select class="form-select" id="phoneColumnSelect">
+              <option value="">-- Select the column containing phone numbers --</option>
+              ${excelColumns.map(c=>`<option value="${c}" ${c===detectedPhoneCol?'selected':''}>${c}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+  
+  // Get template variables from variable_schema (same as group section)
+  // Handle both string (from DB) and object formats
+  let schema = selectedTemplate?.variable_schema;
+  if(typeof schema === 'string'){
+    try { schema = JSON.parse(schema); } catch(e){ schema = null; }
+  }
+  
+  console.log('showMappingUI - schema:', schema);
+  
+  if(schema && typeof schema === 'object' && Object.keys(schema).length > 0){
+      mappingInputs.insertAdjacentHTML('beforeend',`
+        <div class="col-12">
+          <label class="form-label text-muted small mb-2">
+            <i class="fas fa-code me-1"></i>Template Variables → Excel Columns
+          </label>
+        </div>
+      `);
+      
+      Object.keys(schema).forEach(varName=>{
+        const varConfig = schema[varName];
+        const dataType = varConfig?.type || 'string';
+        
+        // Try to auto-match column names
+        const autoMatch=excelColumns.find(c=>
+          normalize(c)===normalize(varName) || 
+          c.toLowerCase().includes(varName.toLowerCase()) ||
+          varName.toLowerCase().includes(c.toLowerCase())
+        );
+        
+        mappingInputs.insertAdjacentHTML('beforeend',`
+          <div class="col-md-4 col-lg-3">
+            <div class="card p-2 h-100">
+              <label class="form-label small mb-1">
+                ${varName} <small class="text-muted">(${dataType})</small>
+              </label>
+              <select class="form-select form-select-sm variable-mapping" data-var="${varName}">
+                <option value="">-- Not Mapped --</option>
+                ${excelColumns.map(c=>`<option value="${c}" ${c===autoMatch?'selected':''}>${c}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+        `);
+      });
+  }else if(!selectedTemplate){
+    mappingInputs.insertAdjacentHTML('beforeend',`
+      <div class="col-12">
+        <div class="alert alert-warning mb-0 py-2">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          <strong>No template selected.</strong> Select a template above to map variables to Excel columns.
+        </div>
+      </div>
+    `);
+  }else{
+    mappingInputs.insertAdjacentHTML('beforeend',`
+      <div class="col-12">
+        <div class="alert alert-info mb-0 py-2">
+          <i class="fas fa-info-circle me-2"></i>This template has no variables. Only phone numbers will be used.
+        </div>
+      </div>
+    `);
+  }
+  
+  // Excel preview
+  mappingInputs.insertAdjacentHTML('beforeend',`
+    <div class="col-12 mt-3">
+      <details open>
+        <summary class="text-muted small fw-medium" style="cursor:pointer">
+          <i class="fas fa-table me-1"></i>Preview imported data (${excelData.length} rows, ${excelColumns.length} columns)
+        </summary>
+        <div class="table-responsive mt-2 border rounded" style="max-height:150px;overflow:auto">
+          <table class="table table-sm table-bordered excel-preview-mini mb-0">
+            <thead class="table-light sticky-top"><tr>${excelColumns.map(c=>`<th class="text-nowrap">${c}</th>`).join('')}</tr></thead>
+            <tbody>${excelData.slice(0,5).map(row=>`<tr>${excelColumns.map(c=>`<td class="text-nowrap">${row[c]||''}</td>`).join('')}</tr>`).join('')}${excelData.length>5?`<tr><td colspan="${excelColumns.length}" class="text-center text-muted">...and ${excelData.length-5} more rows</td></tr>`:''}</tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+  `);
+}
+
+function applyMapping(){
+  const phoneCol=document.getElementById('phoneColumnSelect').value;
+  
+  if(!phoneCol){
+    return alert('Please select the phone column');
+  }
+  
+  // Build column mapping for template variables
+  columnMapping={};
+  document.querySelectorAll('.variable-mapping').forEach(sel=>{
+    const varName=sel.dataset.var;
+    const colName=sel.value;
+    if(colName) columnMapping[varName]=colName;
+  });
+  
+  // Convert Excel data to contacts format
+  contacts=excelData.map(row=>{
+    const phone=String(row[phoneCol]||'').trim();
+    return {
+      phone_number:phone,
+      name:phone,  // Use phone as name since we're not mapping name column
+      _excelRow:row  // Store full row for variable substitution
+    };
+  }).filter(c=>c.phone_number); // Filter out empty phone numbers
+  
+  useExcelData=true;
+  deletedContacts=[]; // Reset deleted contacts
+  
+  // Hide manual variable inputs when using Excel data
+  document.getElementById('variableInputs').style.display='none';
+  
+  // Show personalized badge
+  document.getElementById('previewMsgType').style.display = templateVariables.length > 0 ? 'inline-block' : 'none';
+  
+  renderPreview();
+  updateDeletedUI();
+  updateSteps();
+  
+  // Scroll to preview
+  document.getElementById('previewSection').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function clearExcelImport(){
+  excelData=[];
+  excelColumns=[];
+  columnMapping={};
+  useExcelData=false;
+  contacts=[];
+  deletedContacts=[];
+  
+  document.getElementById('excelFileInput').value='';
+  document.getElementById('mappingSection').style.display='none';
+  document.getElementById('variableInputs').style.display='';
+  document.getElementById('previewBody').innerHTML='';
+  document.getElementById('importStatus').className='badge bg-secondary';
+  document.getElementById('importStatus').textContent='No file selected';
+  document.getElementById('importSection').classList.remove('has-data');
+  document.getElementById('clearImportBtn').style.display='none';
+  document.getElementById('importBtn').innerHTML='<i class="fas fa-upload me-1"></i>Import';
+  document.getElementById('previewMsgType').style.display='none';
+  updateDeletedUI();
+  updatePreviewCount();
+  updateSteps();
+  
+  // Re-fetch contacts from selected group if any and source is group
+  if(recipientSource==='group' && groupSelect.value){
+    fetchJSON(`/groups/${groupSelect.value}/contacts/`,d=>{
+      contacts=d.contacts||[];
+      renderPreview();
+      updateSteps();
+    });
+  }
+}
+
+/* ===================== DELETE & UNDO ===================== */
+function deleteContact(index){
+  if(index<0||index>=contacts.length) return;
+  
+  const deleted=contacts.splice(index,1)[0];
+  deleted._deletedIndex=index; // Remember original position
+  deletedContacts.push(deleted);
+  
+  renderPreview();
+  updateDeletedUI();
+  updateSteps();
+  showUndoToast(deleted);
+}
+
+function undoLastDelete(){
+  if(!deletedContacts.length) return;
+  
+  const restored=deletedContacts.pop();
+  const insertAt=Math.min(restored._deletedIndex,contacts.length);
+  contacts.splice(insertAt,0,restored);
+  
+  renderPreview();
+  updateDeletedUI();
+  updateSteps();
+  hideUndoToast();
+}
+
+function undoAllDeletes(){
+  while(deletedContacts.length){
+    const restored=deletedContacts.pop();
+    const insertAt=Math.min(restored._deletedIndex,contacts.length);
+    contacts.splice(insertAt,0,restored);
+  }
+  
+  renderPreview();
+  updateDeletedUI();
+  updateSteps();
+  hideUndoToast();
+}
+
+function updateDeletedUI(){
+  const count=deletedContacts.length;
+  const btn=document.getElementById('undoAllBtn');
+  const countEl=document.getElementById('deletedCount');
+  
+  if(count>0){
+    btn.style.display='inline-block';
+    countEl.textContent=count;
+  }else{
+    btn.style.display='none';
+  }
+}
+
+function updatePreviewCount(){
+  document.getElementById('previewCount').textContent=`${contacts.length} recipient${contacts.length!==1?'s':''}`;
+}
+
+let undoToastTimeout=null;
+function showUndoToast(deleted){
+  hideUndoToast();
+  
+  const phone=deleted.phone_number;
+  const toast=document.createElement('div');
+  toast.id='undoToast';
+  toast.className='undo-bar';
+  toast.innerHTML=`
+    <div class="alert alert-dark mb-0 d-flex align-items-center gap-3 shadow-lg py-2 px-3">
+      <span><i class="fas fa-trash-alt me-2"></i>Removed ${phone}</span>
+      <button class="btn btn-sm btn-warning" onclick="undoLastDelete()">
+        <i class="fas fa-undo me-1"></i>Undo
+      </button>
+      <button class="btn-close btn-close-white" onclick="hideUndoToast()"></button>
+    </div>
+  `;
+  document.body.appendChild(toast);
+  
+  // Auto-hide after 5 seconds
+  undoToastTimeout=setTimeout(hideUndoToast,5000);
+}
+
+function hideUndoToast(){
+  if(undoToastTimeout){
+    clearTimeout(undoToastTimeout);
+    undoToastTimeout=null;
+  }
+  const toast=document.getElementById('undoToast');
+  if(toast) toast.remove();
 }
 
 /* ===================== TEMPLATE ===================== */
 templateSelect.onchange=()=>{
   selectedTemplate=templates.find(t=>t.id==templateSelect.value);
-  if(!selectedTemplate) return;
-  renderVariableInputs(selectedTemplate.variable_schema);
+  
+  // Update template variables info
+  const varsInfo = document.getElementById('templateVarsInfo');
+  const varsList = document.getElementById('templateVarsList');
+  const templateHint = document.getElementById('templateHint');
+  const noTemplateWarning = document.getElementById('noTemplateWarning');
+  
+  if(!selectedTemplate){
+    varsInfo.style.display='none';
+    templateHint.style.display='block';
+    templateVariables=[];
+    noTemplateWarning.style.display = recipientSource==='excel' ? 'block' : 'none';
+    updateSteps();
+    return;
+  }
+  
+  console.log('Selected template:', selectedTemplate);
+  console.log('variable_schema:', selectedTemplate.variable_schema);
+  
+  templateHint.style.display='none';
+  noTemplateWarning.style.display='none';
+  
+  // Get variables from variable_schema - handle both string and object formats
+  let schema = selectedTemplate.variable_schema;
+  if(typeof schema === 'string'){
+    try { schema = JSON.parse(schema); } catch(e){ schema = null; }
+  }
+  
+  templateVariables = (schema && typeof schema === 'object') ? Object.keys(schema) : [];
+  
+  // Show variables info with type
+  if(schema && typeof schema === 'object' && Object.keys(schema).length > 0){
+    varsInfo.style.display='block';
+    varsList.innerHTML = Object.keys(schema).map(varName => {
+      const dataType = schema[varName]?.type || 'string';
+      return `<span class="variable-badge me-1">${varName} <small class="text-muted">(${dataType})</small></span>`;
+    }).join('');
+  }else{
+    varsInfo.style.display='none';
+  }
+  
+  // Render manual variable inputs (for group-based)
+  renderVariableInputs(schema);
+  
+  // If Excel data is loaded, refresh the mapping UI to show new template variables
+  if(excelData.length>0){
+    const currentPhoneCol=document.getElementById('phoneColumnSelect')?.value||null;
+    showMappingUI(currentPhoneCol);
+  }
+  
   renderPreview();
+  updateSteps();
 };
 
 groupSelect.onchange=()=>{
+  if(recipientSource !== 'group') return;
+  
+  deletedContacts=[];
+  updateDeletedUI();
+  
+  if(!groupSelect.value){
+    contacts=[];
+    renderPreview();
+    updateSteps();
+    return;
+  }
+  
   fetchJSON(`/groups/${groupSelect.value}/contacts/`,d=>{
     contacts=d.contacts||[];
     renderPreview();
+    updateSteps();
   });
 };
 
 /* ===================== VARIABLES ===================== */
-function renderVariableInputs(schema){
+function renderVariableInputs(schemaInput){
   variableValues = {};
   variableInputs.innerHTML = '';
-  if (!schema) return;
+  
+  // Handle both string (from DB) and object formats
+  let schema = schemaInput;
+  if(typeof schema === 'string'){
+    try { schema = JSON.parse(schema); } catch(e){ schema = null; }
+  }
+  
+  if (!schema || typeof schema !== 'object') return;
 
   Object.keys(schema).forEach(varName => {
     const varConfig = schema[varName];
-    const dataType = varConfig.type || 'string';
+    const dataType = varConfig?.type || 'string';
     
     // Map data types to HTML input types
     let inputType = 'text';
@@ -210,37 +948,112 @@ function applyVars(text) {
 
 function renderPreview(){
   const body=document.getElementById('previewBody');
+  const emptyState=document.getElementById('previewEmpty');
+  const tableContainer=document.getElementById('previewTableContainer');
+  
   body.innerHTML='';
-  if(!selectedTemplate||!contacts.length) return;
+  
+  // Show empty state if no template or no contacts
+  if(!selectedTemplate||!contacts.length){
+    emptyState.style.display='block';
+    tableContainer.style.display='none';
+    updatePreviewCount();
+    return;
+  }
+  
+  emptyState.style.display='none';
+  tableContainer.style.display='block';
 
   contacts.forEach((c,i)=>{
+    // Use per-contact data from Excel if available
+    let message;
+    if(useExcelData && c._excelRow){
+      message=applyVarsWithRow(selectedTemplate.content, c._excelRow);
+    }else{
+      message=applyVars(selectedTemplate.content);
+    }
+    
+    // Highlight unfilled variables
+    const highlightedMessage = message.replace(/\{#[^#]+#\}/g, '<span class="text-danger fw-bold">$&</span>');
+    
     body.insertAdjacentHTML('beforeend',`
       <tr>
-        <td>${i+1}</td>
-        <td>${c.name}</td>
-        <td>${c.phone_number}</td>
-        <td>${applyVars(selectedTemplate.content)}</td>
+        <td class="text-center text-muted">${i+1}</td>
+        <td class="text-nowrap"><i class="fas fa-mobile-alt text-muted me-1"></i>${c.phone_number}</td>
+        <td><small>${highlightedMessage}</small></td>
+        <td class="text-center">
+          <button type="button" class="btn btn-sm btn-outline-danger btn-delete py-0 px-1" onclick="deleteContact(${i})" title="Remove recipient">
+            <i class="fas fa-times"></i>
+          </button>
+        </td>
       </tr>
     `);
   });
+  
+  updatePreviewCount();
+}
+
+// Apply variables using per-contact Excel row data
+function applyVarsWithRow(content, row){
+  if(!content) return '';
+  let text=content;
+  // Replace variables using column mapping
+  Object.keys(columnMapping).forEach(varName=>{
+    const colName=columnMapping[varName];
+    const value=String(row[colName]||'').trim();
+    text=text.replace(new RegExp(`\\{#${varName}#\\}`,'g'), value);
+  });
+  return text;
 }
 
 /* ===================== SUBMIT ===================== */
 smsForm.onsubmit=async e=>{
   e.preventDefault();
-  if(!selectedTemplate||!contacts.length) return alert('Select template & group');
+  
+  // Validation
+  if(!selectedTemplate){
+    alert('Please select a template');
+    templateSelect.focus();
+    return;
+  }
+  
+  if(!contacts.length){
+    alert('Please add recipients - either select a group or import from Excel');
+    return;
+  }
 
-  const msg=applyVars(selectedTemplate.content);
-  const payload={
-    template_id:selectedTemplate.id,
-    recipients:contacts.map(c=>c.phone_number),
-    message:msg,
-    sender_id:'BOMBYS',
-    campaign_id:campaignSelect.value||null
-  };
+  // Check if using Excel data - send per-contact messages
+  let payload;
+  if(useExcelData){
+    // Build recipients with individual messages
+    const recipients=contacts.map(c=>{
+      const message=applyVarsWithRow(selectedTemplate.content, c._excelRow);
+      return {
+        phone:c.phone_number,
+        message:message
+      };
+    });
+    
+    payload={
+      template_id:selectedTemplate.id,
+      recipients_with_messages:recipients,
+      sender_id:'BOMBYS',
+      campaign_id:campaignSelect.value||null,
+      per_contact_messages:true
+    };
+  }else{
+    const msg=applyVars(selectedTemplate.content);
+    payload={
+      template_id:selectedTemplate.id,
+      recipients:contacts.map(c=>c.phone_number),
+      message:msg,
+      sender_id:'BOMBYS',
+      campaign_id:campaignSelect.value||null
+    };
+  }
 
   sendBtn.disabled=true;
-  sendBtn.innerHTML='Sending…';
+  sendBtn.innerHTML='<span class="spinner-border spinner-border-sm me-2"></span>Sending...';
 
   try{
     const r=await fetch('/api/sms/send/',{
@@ -254,12 +1067,12 @@ smsForm.onsubmit=async e=>{
     });
     const j=await r.json();
     if(!j.success) throw j;
-    alert('SMS sent!');
+    alert(`SMS sent successfully to ${contacts.length} recipient${contacts.length!==1?'s':''}!`);
     location.href='/history/';
-  }catch{
-    alert('Failed to send');
+  }catch(err){
+    alert('Failed to send: '+(err.error||err.message||'Unknown error'));
     sendBtn.disabled=false;
-    sendBtn.innerHTML='Send SMS';
+    sendBtn.innerHTML='<i class="fas fa-paper-plane me-2"></i>Send SMS';
   }
 };
 </script>

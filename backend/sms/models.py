@@ -272,6 +272,8 @@ class SMSRecipient(models.Model):
     delivery_time = models.DateTimeField(null=True, blank=True)
     error_code = models.IntegerField(null=True, blank=True)
     error_description = models.TextField(null=True, blank=True)
+    error_message = models.TextField(null=True, blank=True)  # For storing error messages
+    personalized_message = models.TextField(null=True, blank=True)  # For storing per-contact message content
 
     def __str__(self):
         return f"{self.phone_number} ({self.status})"

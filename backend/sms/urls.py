@@ -13,6 +13,7 @@ from .myviews.groups_api import (
     add_contacts_to_group,
     import_contacts_excel,
     delete_contact_from_group,
+    delete_group,
 )
 from .myviews.Campaign_api import (get_campaigns, create_campaign)
 from .myviews.Reports_api import (reports_dashboard, reports_generate)
@@ -78,6 +79,7 @@ urlpatterns = [
     # Groups Management API
     path("groups/", get_groups, name="api_groups"),
     path("groups/create/", create_group, name="api_create_group"),
+    path("groups/<int:group_id>/", delete_group, name="api_delete_group"),
     path("groups/<int:group_id>/contacts/", get_group_contacts, name="api_group_contacts"),
     path("groups/<int:group_id>/contacts/add/", add_contacts_to_group, name="api_add_contacts"),
     path("groups/<int:group_id>/contacts/import/", import_contacts_excel, name="api_import_contacts_excel"),

@@ -10,7 +10,7 @@ from sms.models import Campaign
 
 @login_required
 def get_campaigns(request):
-    """Return user's campaigns (latest first)."""
+    """Return user's own campaigns (latest first). Each user only sees their own campaigns."""
     campaigns = Campaign.objects.filter(user=request.user).order_by('-created_at')
     data = [
         {
