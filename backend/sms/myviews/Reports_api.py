@@ -87,9 +87,10 @@ def reports_dashboard(request):
 def reports_generate(request):
     """Generate reports based on parameters"""
     try:
+        from datetime import datetime, timedelta
         user = request.user
         report_type = request.GET.get('type', 'delivery')
-        date_range = request.GET.get('range', 'last30')
+        date_range = request.GET.get('range', 'week')
         start_date = request.GET.get('start')
         end_date = request.GET.get('end')
         
@@ -126,57 +127,184 @@ def reports_generate(request):
                 created_at__range=[start_dt, end_dt]
             )
         
-        # Generate report data based on actual database records
-        from datetime import datetime, timedelta
-        today = timezone.now().date()
-        delivery_trends = []
-        
-        # Get data for last 7 days
-        for i in range(6, -1, -1):
-            day = today - timedelta(days=i)
-            day_start = timezone.make_aware(datetime.combine(day, datetime.min.time()))
-            day_end = timezone.make_aware(datetime.combine(day, datetime.max.time()))
+        # Generate report data based on type
+        if report_type == 'delivery':
+            # Delivery report - daily breakdown
+            today = timezone.now().date()
+            delivery_trends = []
             
-            messages = messages_qs.filter(created_at__range=[day_start, day_end])
-            sent = messages.count()
-            delivered = messages.filter(status='delivered').count()
-            failed = messages.filter(status='failed').count()
+            # Calculate days in range
+            days_diff = (end_dt.date() - start_dt.date()).days
             
-            delivery_trends.append({
-                'date': day.strftime('%Y-%m-%d'),
-                'sent': sent,
-                'delivered': delivered,
-                'failed': failed
-            })
-        
-        # Calculate stats
-        total_sent = sum(d['sent'] for d in delivery_trends)
-        total_delivered = sum(d['delivered'] for d in delivery_trends)
-        total_failed = sum(d['failed'] for d in delivery_trends)
-        delivery_rate = (total_delivered / total_sent * 100) if total_sent > 0 else 0
-        
-        # Get categories (mock for now)
-        categories = [
-            {'name': 'Academic', 'count': int(total_sent * 0.41), 'percentage': 41.0},
-            {'name': 'Administrative', 'count': int(total_sent * 0.265), 'percentage': 26.5},
-            {'name': 'Events', 'count': int(total_sent * 0.196), 'percentage': 19.6},
-            {'name': 'Emergency', 'count': int(total_sent * 0.129), 'percentage': 12.9}
-        ]
-        
-        data = {
-            "stats": {
-                "total_sent": total_sent,
-                "delivery_rate": round(delivery_rate, 1),
-                "failed_count": total_failed,
-                "active_users": User.objects.filter(role='teacher').count() if user.role == 'admin' else 1
-            },
-            "delivery_trends": delivery_trends,
-            "categories": categories,
-            "report_type": report_type
-        }
+            for i in range(days_diff, -1, -1):
+                day = end_dt.date() - timedelta(days=i)
+                day_start = timezone.make_aware(datetime.combine(day, datetime.min.time()))
+                day_end = timezone.make_aware(datetime.combine(day, datetime.max.time()))
+                
+                messages = messages_qs.filter(created_at__range=[day_start, day_end])
+                sent = messages.count()
+                delivered = messages.filter(status='delivered').count()
+                failed = messages.filter(status='failed').count()
+                
+                delivery_trends.append({
+                    'date': day.strftime('%Y-%m-%d'),
+                    'sent': sent,
+                    'delivered': delivered,
+                    'failed': failed
+                })
+            
+            # Calculate stats
+            total_sent = sum(d['sent'] for d in delivery_trends)
+            total_delivered = sum(d['delivered'] for d in delivery_trends)
+            total_failed = sum(d['failed'] for d in delivery_trends)
+            delivery_rate = (total_delivered / total_sent * 100) if total_sent > 0 else 0
+            
+            data = {
+                "stats": {
+                    "total_sent": total_sent,
+                    "delivery_rate": round(delivery_rate, 1),
+                    "failed_count": total_failed,
+                    "active_users": User.objects.filter(role='teacher').count() if user.role == 'admin' else 1
+                },
+                "delivery_trends": delivery_trends,
+                "report_type": report_type
+            }
+            
+        elif report_type == 'usage':
+            # Usage report - by user
+            if user.role == 'admin':
+                users = User.objects.filter(role__in=['admin', 'teacher'])
+                report_data = []
+                
+                for u in users:
+                    u_messages = SMSMessage.objects.filter(
+                        user=u,
+                        created_at__range=[start_dt, end_dt]
+                    )
+                    sent = u_messages.count()
+                    last_msg = u_messages.order_by('-created_at').first()
+                    last_activity = last_msg.created_at.strftime('%Y-%m-%d %H:%M') if last_msg else 'N/A'
+                    
+                    report_data.append({
+                        'user': u.email,
+                        'role': u.get_role_display(),
+                        'messages_sent': sent,
+                        'last_activity': last_activity,
+                        'status': 'Active' if sent > 0 else 'Inactive'
+                    })
+                
+                data = {
+                    "report_type": report_type,
+                    "report_data": report_data,
+                    "stats": {
+                        "total_users": len(report_data),
+                        "active_users": len([r for r in report_data if r['status'] == 'Active']),
+                        "total_sent": sum(r['messages_sent'] for r in report_data)
+                    }
+                }
+            else:
+                # Teacher can only see their own usage
+                sent = messages_qs.count()
+                last_msg = messages_qs.order_by('-created_at').first()
+                last_activity = last_msg.created_at.strftime('%Y-%m-%d %H:%M') if last_msg else 'N/A'
+                
+                data = {
+                    "report_type": report_type,
+                    "report_data": [{
+                        'user': user.email,
+                        'role': user.get_role_display(),
+                        'messages_sent': sent,
+                        'last_activity': last_activity,
+                        'status': 'Active' if sent > 0 else 'Inactive'
+                    }],
+                    "stats": {
+                        "total_users": 1,
+                        "active_users": 1 if sent > 0 else 0,
+                        "total_sent": sent
+                    }
+                }
+                
+        elif report_type == 'user_activity':
+            # User activity report - campaigns and templates
+            if user.role == 'admin':
+                campaigns = Campaign.objects.filter(
+                    created_at__range=[start_dt, end_dt]
+                )
+            else:
+                campaigns = Campaign.objects.filter(
+                    user=user,
+                    created_at__range=[start_dt, end_dt]
+                )
+            
+            activity_data = []
+            for campaign in campaigns:
+                activity_data.append({
+                    'campaign': campaign.title,
+                    'user': campaign.user.email,
+                    'status': campaign.get_status_display(),
+                    'recipients': campaign.total_recipients,
+                    'sent': campaign.total_sent,
+                    'delivered': campaign.total_delivered,
+                    'failed': campaign.total_failed,
+                    'created': campaign.created_at.strftime('%Y-%m-%d %H:%M')
+                })
+            
+            data = {
+                "report_type": report_type,
+                "report_data": activity_data,
+                "stats": {
+                    "total_campaigns": len(activity_data),
+                    "total_sent": sum(c['sent'] for c in activity_data),
+                    "total_delivered": sum(c['delivered'] for c in activity_data)
+                }
+            }
+            
+        elif report_type == 'financial':
+            # Financial report - cost estimation
+            sms_cost_per_message = 0.25  # Cost per SMS
+            
+            messages = messages_qs.all()
+            total_sent = messages.count()
+            total_cost = total_sent * sms_cost_per_message
+            
+            # Monthly breakdown
+            from collections import defaultdict
+            monthly_data = defaultdict(lambda: {'sent': 0, 'cost': 0})
+            
+            for msg in messages:
+                month_key = msg.created_at.strftime('%Y-%m')
+                monthly_data[month_key]['sent'] += 1
+                monthly_data[month_key]['cost'] += sms_cost_per_message
+            
+            financial_data = [
+                {
+                    'month': month,
+                    'messages_sent': data['sent'],
+                    'cost': round(data['cost'], 2)
+                }
+                for month, data in sorted(monthly_data.items())
+            ]
+            
+            data = {
+                "report_type": report_type,
+                "report_data": financial_data,
+                "stats": {
+                    "total_sent": total_sent,
+                    "total_cost": round(total_cost, 2),
+                    "avg_monthly_cost": round(total_cost / max(len(financial_data), 1), 2)
+                }
+            }
+        else:
+            # Default - delivery report
+            data = {
+                "error": "Invalid report type",
+                "report_type": report_type
+            }
         
         return JsonResponse(data)
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return JsonResponse({"error": str(e)}, status=500)
 

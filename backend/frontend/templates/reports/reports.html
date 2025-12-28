@@ -172,6 +172,13 @@
     let deliveryChart, categoryChart;
     let reportData = {};
 
+    // Initialize with backend data
+    reportData = {
+      stats: {{ initial_stats|safe }},
+      delivery_trends: {{ delivery_trends|safe }},
+      categories: {{ categories|safe }}
+    };
+
     // Initialize dashboard
     async function initializeDashboard() {
       await loadReportData();
@@ -190,34 +197,25 @@
           }
         });
         if (response.ok) {
-          reportData = await response.json();
+          const freshData = await response.json();
+          // Update with fresh data from API
+          reportData = freshData;
+          updateStats();
+          updateCharts();
         }
       } catch (error) {
         console.error('Error loading report data:', error);
-        // Mock data for demo
-        reportData = {
-          stats: {
-            total_sent: 15847,
-            delivery_rate: 94.2,
-            failed_count: 920,
-            active_users: 256
-          },
-          delivery_trends: [
-            { date: '2025-01-10', sent: 1250, delivered: 1180, failed: 70 },
-            { date: '2025-01-11', sent: 1340, delivered: 1265, failed: 75 },
-            { date: '2025-01-12', sent: 1180, delivered: 1115, failed: 65 },
-            { date: '2025-01-13', sent: 1420, delivered: 1338, failed: 82 },
-            { date: '2025-01-14', sent: 1560, delivered: 1470, failed: 90 },
-            { date: '2025-01-15', sent: 1680, delivered: 1585, failed: 95 }
-          ],
-          categories: [
-            { name: 'Academic', count: 6500, percentage: 41.0 },
-            { name: 'Administrative', count: 4200, percentage: 26.5 },
-            { name: 'Events', count: 3100, percentage: 19.6 },
-            { name: 'Emergency', count: 2047, percentage: 12.9 }
-          ]
-        };
+        // Use initial backend data already loaded
+        console.log('Using initial backend data');
       }
+    }
+
+    function updateStats() {
+      if (!reportData.stats) return;
+      document.getElementById('totalSent').textContent = reportData.stats.total_sent.toLocaleString();
+      document.getElementById('deliveryRate').textContent = reportData.stats.delivery_rate + '%';
+      document.getElementById('failedCount').textContent = reportData.stats.failed_count.toLocaleString();
+      document.getElementById('activeUsers').textContent = reportData.stats.active_users.toLocaleString();
     }
 
     function updateStats() {
@@ -348,24 +346,26 @@
             'Content-Type': 'application/json'
           }
         });
-        let data;
         
         if (response.ok) {
-          data = await response.json();
+          const data = await response.json();
           
-          // Update report data
-          reportData = data;
+          // Update report data if it includes stats
+          if (data.stats) {
+            reportData.stats = data.stats;
+            updateStats();
+          }
           
-          // Update stats
-          updateStats();
+          // Update charts if data includes trends
+          if (data.delivery_trends) {
+            reportData.delivery_trends = data.delivery_trends;
+            updateCharts();
+          }
           
-          // Update charts with new data
-          updateCharts();
-          
-          // Render table
-          renderReportTable(generateMockReportData(reportType), reportType);
+          // Render table based on report type
+          renderReportTable(data, reportType);
         } else {
-          // Mock data based on report type
+          // Fallback to mock data
           const mockData = generateMockReportData(reportType);
           renderReportTable(mockData, reportType);
         }
@@ -439,23 +439,101 @@
       headersRow.innerHTML = '';
       dataBody.innerHTML = '';
       
-      // Render headers
-      data.headers.forEach(header => {
-        const th = document.createElement('th');
-        th.textContent = header;
-        headersRow.appendChild(th);
-      });
-      
-      // Render data
-      data.data.forEach(row => {
-        const tr = document.createElement('tr');
-        row.forEach(cell => {
-          const td = document.createElement('td');
-          td.textContent = cell;
-          tr.appendChild(td);
+      // Handle API response format
+      if (data.report_data) {
+        // Real API data
+        if (reportType === 'usage' && Array.isArray(data.report_data)) {
+          // Usage report
+          const headers = ['User', 'Role', 'Messages Sent', 'Last Activity', 'Status'];
+          headers.forEach(header => {
+            const th = document.createElement('th');
+            th.textContent = header;
+            headersRow.appendChild(th);
+          });
+          
+          data.report_data.forEach(item => {
+            const tr = document.createElement('tr');
+            [item.user, item.role, item.messages_sent, item.last_activity, item.status].forEach(cell => {
+              const td = document.createElement('td');
+              td.textContent = cell;
+              tr.appendChild(td);
+            });
+            dataBody.appendChild(tr);
+          });
+        } else if (reportType === 'user_activity' && Array.isArray(data.report_data)) {
+          // User activity report
+          const headers = ['Campaign', 'User', 'Status', 'Recipients', 'Sent', 'Delivered', 'Failed', 'Created'];
+          headers.forEach(header => {
+            const th = document.createElement('th');
+            th.textContent = header;
+            headersRow.appendChild(th);
+          });
+          
+          data.report_data.forEach(item => {
+            const tr = document.createElement('tr');
+            [item.campaign, item.user, item.status, item.recipients, item.sent, item.delivered, item.failed, item.created].forEach(cell => {
+              const td = document.createElement('td');
+              td.textContent = cell;
+              tr.appendChild(td);
+            });
+            dataBody.appendChild(tr);
+          });
+        } else if (reportType === 'financial' && Array.isArray(data.report_data)) {
+          // Financial report
+          const headers = ['Month', 'Messages Sent', 'Cost (₹)'];
+          headers.forEach(header => {
+            const th = document.createElement('th');
+            th.textContent = header;
+            headersRow.appendChild(th);
+          });
+          
+          data.report_data.forEach(item => {
+            const tr = document.createElement('tr');
+            [item.month, item.messages_sent, '₹' + item.cost].forEach(cell => {
+              const td = document.createElement('td');
+              td.textContent = cell;
+              tr.appendChild(td);
+            });
+            dataBody.appendChild(tr);
+          });
+        }
+      } else if (data.delivery_trends) {
+        // Delivery report from trends data
+        const headers = ['Date', 'Messages Sent', 'Delivered', 'Failed', 'Delivery Rate'];
+        headers.forEach(header => {
+          const th = document.createElement('th');
+          th.textContent = header;
+          headersRow.appendChild(th);
         });
-        dataBody.appendChild(tr);
-      });
+        
+        data.delivery_trends.forEach(d => {
+          const tr = document.createElement('tr');
+          const deliveryRate = d.sent > 0 ? ((d.delivered / d.sent) * 100).toFixed(1) + '%' : '0%';
+          [new Date(d.date).toLocaleDateString(), d.sent, d.delivered, d.failed, deliveryRate].forEach(cell => {
+            const td = document.createElement('td');
+            td.textContent = cell;
+            tr.appendChild(td);
+          });
+          dataBody.appendChild(tr);
+        });
+      } else if (data.headers && data.data) {
+        // Legacy mock data format
+        data.headers.forEach(header => {
+          const th = document.createElement('th');
+          th.textContent = header;
+          headersRow.appendChild(th);
+        });
+        
+        data.data.forEach(row => {
+          const tr = document.createElement('tr');
+          row.forEach(cell => {
+            const td = document.createElement('td');
+            td.textContent = cell;
+            tr.appendChild(td);
+          });
+          dataBody.appendChild(tr);
+        });
+      }
     }
 
     function exportReport(format) {
