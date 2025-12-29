@@ -133,3 +133,19 @@
     text-decoration: underline;
   }
 </style>
+
+<script>
+  // Prevent clicking on current page link (avoids unnecessary reload)
+  (function(){
+    const currentPath = window.location.pathname;
+    document.querySelectorAll('.sidebar-nav .nav-item, .sidebar-footer .nav-item').forEach(link => {
+      const href = link.getAttribute('href');
+      if (href && (href === currentPath || href === currentPath.replace(/\/$/, '') || href + '/' === currentPath)) {
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+        });
+        link.style.cursor = 'default';
+      }
+    });
+  })();
+</script>

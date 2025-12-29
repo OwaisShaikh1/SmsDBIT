@@ -1,6 +1,7 @@
 # 🔍 SMS Portal - Role-Based Code Audit Report
 
 **Generated:** Comprehensive Code Audit  
+**Last Updated:** December 29, 2025  
 **Scope:** Admin & Teacher Role Perspectives  
 **Focus:** Bugs, Inconsistencies, Incomplete Functions, Authorization Issues
 
@@ -66,6 +67,17 @@ elif user.assigned_class:
     )
     contacts = StudentContact.objects.filter(class_dept__in=accessible_groups)
 ```
+
+---
+
+### ~~6. Admin Can't See All Campaigns~~ ✅ FIXED
+~~**Severity:** Critical | **Affects:** Admin~~  
+~~**File:** `backend/sms/myviews/Campaign_api.py` (Lines 14-16)~~
+
+**Resolution:** Updated `get_campaigns()` to check user role:
+- Admin now sees all campaigns system-wide
+- Teachers see only their own campaigns
+- Added `user` and `user_email` fields to response for admin visibility
 
 ---
 
@@ -142,9 +154,9 @@ delete_sender_id(request, sender_id)  # Admin removes
 
 ---
 
-## 🟡 MEDIUM PRIORITY ISSUES (6)
+## 🟡 MEDIUM PRIORITY ISSUES (7)
 
-### 13. **Reports Using Mock Category Data**
+### 13. **Reports API Using Mock Category Data**
 **Severity:** Medium | **Affects:** Admin & Teacher  
 **File:** `backend/sms/myviews/Reports_api.py` (Lines 59-64)
 
@@ -158,6 +170,8 @@ categories = [
     {'name': 'Emergency', 'count': int(total_messages * 0.129), 'percentage': 12.9}
 ]
 ```
+
+**Note:** Frontend view in `frontend_views.py` (reports_view) now attempts real categorization based on campaign titles, but falls back to mock data. The API endpoint still uses hardcoded values.
 
 **Fix:** Calculate based on `Template.category` used in messages.
 
@@ -214,6 +228,8 @@ path("contacts/", login_required(lambda request: render(request, "contacts.html"
 
 **Fix:** Change to `render(request, "contacts/contacts.html")`
 
+**Additional Issue:** This route also creates a **duplicate** `/contacts/` path that conflicts with `frontend_urls.py` which defines the same path pointing to `ContactsView`. The duplicate in `urls.py` should be **removed entirely**.
+
 ---
 
 ### 18. **Inconsistent CSRF Handling**
@@ -223,6 +239,10 @@ path("contacts/", login_required(lambda request: render(request, "contacts.html"
 **Issue:** Some POST endpoints have `@csrf_exempt`, others don't. Frontend AJAX may not send CSRF token consistently.
 
 **Recommendation:** Standardize: either use `@csrf_exempt` for all API endpoints and handle auth via tokens, OR ensure all frontend AJAX includes CSRF header.
+
+**Current Status:** Only 3 endpoints use `@csrf_exempt`:
+- `send_sms_api.py` - Lines 14, 330
+- `Campaign_api.py` - Line 26
 
 ---
 
@@ -297,7 +317,7 @@ Will cause performance issues with large datasets.
 ---
 
 ### 25. **Debug Print Statement**
-**File:** `backend/sms/myviews/groups_api.py` (Line 117)
+**File:** `backend/sms/myviews/groups_api.py` (Line 126)
 
 **Issue:** Debug print left in production code:
 
@@ -315,15 +335,16 @@ Should be removed or converted to logger.debug().
 |----------|-------|---------|----------------|
 | Send SMS | ✅ | ✅ | Working |
 | View Own Campaigns | ✅ | ✅ | Working |
-| View ALL Campaigns | ❌ | N/A | **BROKEN** - Admin can't see all |
+| View ALL Campaigns | ✅ | N/A | ✅ Working |
 | Create Template | ❌ | ❌ | **MISSING** |
 | Approve Template | ❌ | N/A | **MISSING** |
 | View Own Templates | ✅ | ❌ | **BROKEN** - Teachers can't see own |
 | Create Group | ✅ | ✅ | Working |
-| Delete Group | ❌ | ❌ | **MISSING** |
+| Delete Group | ✅ | ✅ | ✅ Working |
+| Update Group | ❌ | ❌ | **MISSING** |
 | Create Universal Group | ✅ | ❌ | Working |
-| Manage Users | ✅ | N/A | Partial |
-| View Reports | ✅ | ✅ | Working (mock data) |
+| Manage Users | ✅ | N/A | Partial (no update/list API) |
+| View Reports | ✅ | ✅ | Working (mock data in API) |
 | Manage SenderIDs | ❌ | N/A | **MISSING** |
 | Settings | ✅ | ✅ | Working |
 
@@ -332,29 +353,32 @@ Should be removed or converted to logger.debug().
 ## 📋 Recommended Fix Priority
 
 ### Phase 1: Critical Fixes (Immediate)
-1. ✅ Fix contacts API broken filter (#2)
+1. ⬜ Fix contacts API broken filter (#2)
 2. ✅ Add credit check before sending (#4)
 3. ✅ Add credit deduction after sending (#3)
 4. ✅ Remove duplicate return statement (#5)
+5. ✅ Fix admin campaign visibility (#6)
 
 ### Phase 2: High Priority (This Week)
-5. ✅ Add template CRUD operations (#1)
-6. ✅ Fix admin campaign visibility (#6)
-7. ✅ Fix teachers seeing own templates (#7)
-8. ✅ Add group delete/update (#8, #9)
-9. ✅ Add SenderID management API (#11)
+6. ⬜ Add template CRUD operations (#1)
+7. ⬜ Fix teachers seeing own templates (#7)
+8. ✅ Add group delete (#8)
+9. ⬜ Add group update (#9)
+10. ⬜ Fix Excel import universal group check (#10)
+11. ⬜ Add SenderID management API (#11)
 
 ### Phase 3: Medium Priority (This Sprint)
-10. ✅ Complete dashboard context (#12)
-11. ✅ Implement real test SMS (#14)
-12. ✅ Add user list/update APIs (#15, #16)
-13. ✅ Fix contacts route (#17)
+12. ✅ Complete dashboard context (#12)
+13. ⬜ Implement real test SMS (#14)
+14. ⬜ Add user list/update APIs (#15, #16)
+15. ⬜ Fix/remove duplicate contacts route (#17)
 
 ### Phase 4: Cleanup (Backlog)
-14. Standardize API responses (#19)
-15. Add pagination (#24)
-16. Remove debug prints (#25)
-17. Clean up redundant imports (#21)
+16. Standardize API responses (#19)
+17. Add pagination (#24)
+18. Remove debug prints (#25)
+19. Clean up redundant imports (#21)
+20. Remove orphaned code in views.py (#22)
 
 ---
 
@@ -363,11 +387,11 @@ Should be removed or converted to logger.debug().
 | Severity | Count | Examples |
 |----------|-------|----------|
 | 🔴 Critical | 2 | Missing template CRUD, broken contacts filter |
-| 🟠 High | 4 | Teachers can't see own templates, missing group update |
-| 🟡 Medium | 6 | Mock data, test SMS not sent, missing user APIs |
+| 🟠 High | 4 | Teachers can't see own templates, missing group update, Excel import bug |
+| 🟡 Medium | 7 | Mock data, test SMS not sent, missing user APIs, duplicate route |
 | 🟢 Low | 7 | Code quality, inconsistent formats, debug prints |
 
-**Total Remaining Issues: 19**
+**Total Remaining Issues: 20**
 
 ---
 
@@ -388,15 +412,17 @@ Should be removed or converted to logger.debug().
 - Added `groups_count`, `templates_count`, `pending_templates`, `success_rate` to dashboard context
 - Admin sees system-wide stats; Teachers see their own data + accessible groups
 
+### ~~8. Missing Group Delete Endpoint~~ ✅ FIXED
+- Added `delete_group()` function in `groups_api.py` (Lines 345-370)
+- Added URL route `DELETE /api/groups/<group_id>/`
+- Proper permission checks: admin can delete any, teachers only their own non-universal groups
+
 ### ~~6. Admin Can't See All Campaigns~~ ✅ FIXED
 - Updated `get_campaigns()` in `Campaign_api.py` to check user role
 - Admin now sees all campaigns system-wide; Teachers see only their own
-
-### ~~8. Missing Group Delete Endpoint~~ ✅ FIXED
-- Added `delete_group()` function in `groups_api.py`
-- Added URL route `DELETE /api/groups/<group_id>/`
-- Proper permission checks: admin can delete any, teachers only their own
+- Added `user` and `user_email` fields to campaign response for admin visibility
 
 ---
 
-*Report generated for SMS Portal Django Application - Admin/Teacher Role Audit*
+*Report generated for SMS Portal Django Application - Admin/Teacher Role Audit*  
+*Last updated: December 29, 2025*

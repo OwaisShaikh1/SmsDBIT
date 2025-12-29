@@ -17,7 +17,7 @@ from .myviews.groups_api import (
 )
 from .myviews.Campaign_api import (get_campaigns, create_campaign)
 from .myviews.Reports_api import (reports_dashboard, reports_generate)
-from .myviews.templates_api import (get_templates)
+from .myviews.templates_api import (get_templates, create_template)
 from .myviews.user_management_api import (create_user_view, delete_user_view)
 from .myviews.Settings_api import (
     get_settings,
@@ -86,6 +86,7 @@ urlpatterns = [
     
     # Templates API
     path("templates/", get_templates, name="api_templates"),
+    path("templates/create/", create_template, name="api_create_template"),
     
     # Campaigns API
     path("campaigns/", get_campaigns, name="api_get_campaigns"),

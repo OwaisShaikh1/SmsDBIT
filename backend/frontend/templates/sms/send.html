@@ -355,7 +355,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     populate('templateSelect',templates,'title');
   });
   fetchJSON('/groups/',d=>populate('groupSelect',groups=d,'name'));
-  fetchJSON('/campaigns/',d=>populate('campaignSelect',d,'title'));
+  fetchJSON('/campaigns/?own=true',d=>populate('campaignSelect',d,'title'));  // Only show user's own campaigns
   fetchJSON('/send/stats/',s=>{
     todayCount.textContent=s.today_count;
     remainingCredits.textContent=s.remaining_credits;
@@ -1079,44 +1079,65 @@ smsForm.onsubmit=async e=>{
 };
 </script>
 
-<!-- ✅ SIDEBAR CACHE SCRIPT (ADDED BACK, UNCHANGED) -->
+<!-- Cache-first sidebar loading for Dashboard -->
 <script>
-(function(){
-  const CACHE_KEY='sidebar_html_v1';
-  const CACHE_TTL_KEY='sidebar_html_v1_ttl';
-  const TTL=1000*60*30;
+    (function(){
+      const CACHE_KEY = 'sidebar_html_v1';
+      const CACHE_TTL_KEY = 'sidebar_html_v1_ttl';
+      const CACHE_TTL_MS = 1000 * 60 * 30; // 30 minutes
 
-  function csrf(){
-    const c=document.cookie.split('; ').find(r=>r.startsWith('csrftoken='));
-    return c?c.split('=')[1]:null;
-  }
+      function getCsrfToken() {
+        const cookieValue = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
+        if (cookieValue) return cookieValue.split('=')[1];
+        const metaTag = document.querySelector('meta[name="csrf-token"]');
+        if (metaTag) return metaTag.getAttribute('content');
+        return null;
+      }
 
-  function inject(html){
-    sidebarContainer.innerHTML=html;
-    const t=csrf();
-    if(!t) return;
-    sidebarContainer.querySelectorAll('input[name=csrfmiddlewaretoken]')
-      .forEach(i=>i.value=t);
-  }
+      function injectSidebar(html) {
+        const container = document.getElementById('sidebarContainer');
+        if (!container) return;
+        container.innerHTML = html;
+        
+        // Update CSRF tokens in forms
+        const csrfToken = getCsrfToken();
+        if (csrfToken) {
+          const forms = container.querySelectorAll('form');
+          forms.forEach(form => {
+            const tokenInput = form.querySelector('input[name="csrfmiddlewaretoken"]');
+            if (tokenInput) tokenInput.value = csrfToken;
+          });
+        }
+      }
 
-  function load(){
-    return fetch('/sidebar/',{credentials:'same-origin'})
-      .then(r=>r.text())
-      .then(h=>{
-        sessionStorage.setItem(CACHE_KEY,h);
-        sessionStorage.setItem(CACHE_TTL_KEY,Date.now()+TTL);
-        inject(h);
-      });
-  }
+      function fetchAndCache() {
+        return fetch('/sidebar/', { credentials: 'same-origin' })
+          .then(r => { if (!r.ok) throw new Error('Failed to load'); return r.text(); })
+          .then(html => {
+            try {
+              sessionStorage.setItem(CACHE_KEY, html);
+              sessionStorage.setItem(CACHE_TTL_KEY, String(Date.now() + CACHE_TTL_MS));
+            } catch (e) { /* ignore storage errors */ }
+            injectSidebar(html);
+          })
+          .catch(err => console.error('Sidebar load failed:', err));
+      }
 
-  const cached=sessionStorage.getItem(CACHE_KEY);
-  const ttl=+sessionStorage.getItem(CACHE_TTL_KEY);
-  if(cached && Date.now()<ttl){
-    inject(cached);
-    load();
-  }else load();
-})();
-</script>
+      // Cache-first: try cache immediately, then refresh in background
+      try {
+        const cached = sessionStorage.getItem(CACHE_KEY);
+        const ttl = parseInt(sessionStorage.getItem(CACHE_TTL_KEY) || '0', 10);
+        if (cached && Date.now() < ttl) {
+          injectSidebar(cached);
+          fetchAndCache(); // Refresh in background
+        } else {
+          fetchAndCache();
+        }
+      } catch (e) {
+        fetchAndCache();
+      }
+    })();
+  </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>

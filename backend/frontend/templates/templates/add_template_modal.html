@@ -1,0 +1,63 @@
+<div class="modal fade" id="addTemplateModal" tabindex="-1" aria-labelledby="addTemplateModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="addTemplateModalLabel">Add New Template</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="addTemplateForm">
+          <div class="mb-3">
+            <label for="templateTitle" class="form-label">Title <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="templateTitle" maxlength="255" required />
+          </div>
+
+          <div class="mb-3">
+            <label for="templateCategory" class="form-label">Category <span class="text-danger">*</span></label>
+            <select class="form-select" id="templateCategory" required>
+              <option value="">Select Category</option>
+              <option value="student">Student</option>
+              <option value="teacher">Teacher</option>
+              <option value="common">Common</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="templateContent" class="form-label">Content <span class="text-danger">*</span></label>
+            <div class="autocomplete-container">
+              <textarea class="form-control" id="templateContent" rows="5" maxlength="1600" required
+                placeholder="Type {# to see variable suggestions, or drag chips here"></textarea>
+              <div id="varSuggestions" class="autocomplete-menu"></div>
+            </div>
+            <div class="form-text d-flex justify-content-between align-items-center mt-1">
+              <span>Use {#variable_name#} syntax for variables</span>
+              <span id="charCount">0/1600</span>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="templateClassScope" class="form-label">Class Scope</label>
+            <input type="text" class="form-control" id="templateClassScope" placeholder="e.g., 10th A (optional)" />
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Variables</label>
+            <div class="small text-muted mb-2">Create variables below, then click, drag, or type {# to insert.</div>
+            <div id="variablesChips" class="mb-2"></div>
+            <div id="variablesContainer"></div>
+            <button type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="addVariableRow()">➕ Add Variable</button>
+          </div>
+
+          <div class="alert alert-info mb-0">
+            <strong>Note:</strong> Variables in content should match the variable names defined below.
+            Example: If you add a variable "meeting_date", use {#meeting_date#} in the content.
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="saveTemplate()">Save Template</button>
+      </div>
+    </div>
+  </div>
+</div>

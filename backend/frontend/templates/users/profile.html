@@ -7,7 +7,6 @@
 
   <!-- Bootstrap -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="{% static 'js/sidebar_loader.js' %}"></script>
 
   <style>
     /* Keep styling consistent with dashboard */
@@ -25,7 +24,6 @@
       <!-- Sidebar container (injected) -->
         <div class="col-md-2 p-0" id="sidebarContainer">
           <noscript>{% include 'includes/sidebar.html' with role=request.user.role %}</noscript>
-          <div class="sidebar-skeleton" aria-hidden="true" style="width:100%;min-height:100vh;"></div>
         </div>
 
       <!-- Main content -->
@@ -84,10 +82,67 @@
   </div>
 
   <!-- Scripts: NOTE the order -->
-  <!-- 1) sidebar.js defines initSidebar -->
-  <script src="/static/js/components/sidebar.js"></script>
-  <!-- 2) common.js injects sidebar.html and calls initSidebar -->
-  <script src="/static/js/common/common.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <script>
+    // Cache-first sidebar loading for Dashboard
+    (function(){
+      const CACHE_KEY = 'sidebar_html_v1';
+      const CACHE_TTL_KEY = 'sidebar_html_v1_ttl';
+      const CACHE_TTL_MS = 1000 * 60 * 30; // 30 minutes
+
+      function getCsrfToken() {
+        const cookieValue = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
+        if (cookieValue) return cookieValue.split('=')[1];
+        const metaTag = document.querySelector('meta[name="csrf-token"]');
+        if (metaTag) return metaTag.getAttribute('content');
+        return null;
+      }
+
+      function injectSidebar(html) {
+        const container = document.getElementById('sidebarContainer');
+        if (!container) return;
+        container.innerHTML = html;
+        
+        // Update CSRF tokens in forms
+        const csrfToken = getCsrfToken();
+        if (csrfToken) {
+          const forms = container.querySelectorAll('form');
+          forms.forEach(form => {
+            const tokenInput = form.querySelector('input[name="csrfmiddlewaretoken"]');
+            if (tokenInput) tokenInput.value = csrfToken;
+          });
+        }
+      }
+
+      function fetchAndCache() {
+        return fetch('/sidebar/', { credentials: 'same-origin' })
+          .then(r => { if (!r.ok) throw new Error('Failed to load'); return r.text(); })
+          .then(html => {
+            try {
+              sessionStorage.setItem(CACHE_KEY, html);
+              sessionStorage.setItem(CACHE_TTL_KEY, String(Date.now() + CACHE_TTL_MS));
+            } catch (e) { /* ignore storage errors */ }
+            injectSidebar(html);
+          })
+          .catch(err => console.error('Sidebar load failed:', err));
+      }
+
+      // Cache-first: try cache immediately, then refresh in background
+      try {
+        const cached = sessionStorage.getItem(CACHE_KEY);
+        const ttl = parseInt(sessionStorage.getItem(CACHE_TTL_KEY) || '0', 10);
+        if (cached && Date.now() < ttl) {
+          injectSidebar(cached);
+          fetchAndCache(); // Refresh in background
+        } else {
+          fetchAndCache();
+        }
+      } catch (e) {
+        fetchAndCache();
+      }
+    })();
+  </script>
 
   <script>
     // Ensure same data source as other pages (localStorage for static demo)

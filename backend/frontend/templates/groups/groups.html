@@ -25,7 +25,6 @@
       <!-- Sidebar -->
       <div class="col-md-2 p-0" id="sidebarContainer">
         <noscript>{% include 'includes/sidebar.html' with role=request.user.role %}</noscript>
-        <div class="sidebar-skeleton" aria-hidden="true" style="width:100%;min-height:100vh;"></div>
       </div>
 
       <!-- Main content -->
@@ -653,11 +652,11 @@
   </script>
 
   <script>
-    // Cache-first sidebar loading
+    // Cache-first sidebar loading for Dashboard
     (function(){
       const CACHE_KEY = 'sidebar_html_v1';
       const CACHE_TTL_KEY = 'sidebar_html_v1_ttl';
-      const CACHE_TTL_MS = 1000 * 60 * 30;
+      const CACHE_TTL_MS = 1000 * 60 * 30; // 30 minutes
 
       function getCsrfToken() {
         const cookieValue = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
@@ -671,6 +670,8 @@
         const container = document.getElementById('sidebarContainer');
         if (!container) return;
         container.innerHTML = html;
+        
+        // Update CSRF tokens in forms
         const csrfToken = getCsrfToken();
         if (csrfToken) {
           const forms = container.querySelectorAll('form');
@@ -688,18 +689,19 @@
             try {
               sessionStorage.setItem(CACHE_KEY, html);
               sessionStorage.setItem(CACHE_TTL_KEY, String(Date.now() + CACHE_TTL_MS));
-            } catch (e) {}
+            } catch (e) { /* ignore storage errors */ }
             injectSidebar(html);
           })
           .catch(err => console.error('Sidebar load failed:', err));
       }
 
+      // Cache-first: try cache immediately, then refresh in background
       try {
         const cached = sessionStorage.getItem(CACHE_KEY);
         const ttl = parseInt(sessionStorage.getItem(CACHE_TTL_KEY) || '0', 10);
         if (cached && Date.now() < ttl) {
           injectSidebar(cached);
-          fetchAndCache();
+          fetchAndCache(); // Refresh in background
         } else {
           fetchAndCache();
         }

@@ -10,14 +10,33 @@ from sms.models import Campaign
 
 @login_required
 def get_campaigns(request):
-    """Return user's own campaigns (latest first). Each user only sees their own campaigns."""
-    campaigns = Campaign.objects.filter(user=request.user).order_by('-created_at')
+    """Return campaigns based on user role and context.
+    
+    Query params:
+        ?own=true - Force return only user's own campaigns (used by send.html)
+    
+    Default behavior:
+        - Admin: sees all campaigns (from all teachers) for history/reports
+        - Teacher: sees only their own campaigns
+    """
+    user = request.user
+    own_only = request.GET.get('own', '').lower() == 'true'
+    
+    if own_only or user.role != 'admin':
+        # Teachers always see own, or admin explicitly requested own campaigns only
+        campaigns = Campaign.objects.filter(user=user).order_by('-created_at')
+    else:
+        # Admin sees all campaigns system-wide (for history/reports)
+        campaigns = Campaign.objects.all().order_by('-created_at')
+    
     data = [
         {
             "id": c.id,
             "title": c.title or f"Untitled Campaign {c.id}",
             "status": c.status or "draft",
-            "created_at": c.created_at.strftime("%Y-%m-%d %H:%M")
+            "created_at": c.created_at.strftime("%Y-%m-%d %H:%M"),
+            "user": c.user.username if c.user else "Unknown",
+            "user_email": c.user.email if c.user else ""
         }
         for c in campaigns
     ]
