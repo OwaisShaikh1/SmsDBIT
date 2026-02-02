@@ -139,12 +139,16 @@ class TemplateSerializer(serializers.ModelSerializer):
     """Serializer for SMS templates"""
     # expose variable_schema if present
     variable_schema = serializers.JSONField(required=False, allow_null=True)
+    user_email = serializers.EmailField(source='user.email', read_only=True)
+    user_id = serializers.IntegerField(source='user.id', read_only=True)
     
 
     class Meta:
         model = Template
-        fields = ('id', 'title', 'content', 'category', 'status', 'variable_schema', 'is_active', 'created_at', 'updated_at')
-        read_only_fields = ('id', 'created_at', 'updated_at')
+        fields = ('id', 'title', 'content', 'category', 'status', 'variable_schema', 
+                  'class_scope', 'is_active', 'created_at', 'updated_at', 
+                  'user_email', 'user_id')
+        read_only_fields = ('id', 'created_at', 'updated_at', 'user_email', 'user_id')
 
     
 

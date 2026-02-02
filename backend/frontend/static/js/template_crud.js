@@ -6,7 +6,10 @@ let suggestionIndex = -1;
 document.addEventListener("DOMContentLoaded", () => {
   const content = document.getElementById("templateContent");
   if (content) bindContentFieldListeners(content);
-  updateVariableChips();
+  
+  // Only update chips if the container exists
+  const chipsContainer = document.getElementById("variablesChips");
+  if (chipsContainer) updateVariableChips();
 });
 
 document.addEventListener('shown.bs.modal', function(ev){
@@ -15,6 +18,12 @@ document.addEventListener('shown.bs.modal', function(ev){
     const content = document.getElementById('templateContent');
     if (content) bindContentFieldListeners(content);
     updateCharCount();
+    
+    // Initialize chips display
+    const chipsEl = document.getElementById('variablesChips');
+    if (chipsEl && !chipsEl.innerHTML.trim()) {
+      chipsEl.innerHTML = '<div class="text-muted small">No variables yet</div>';
+    }
   }
 });
 
@@ -86,6 +95,8 @@ function getVariables() {
 
 function updateVariableChips() {
   const el = document.getElementById("variablesChips");
+  if (!el) return; // Element doesn't exist yet
+  
   const vars = getVariables();
   if (!vars.length) {
     el.innerHTML = `<div class="text-muted small">No variables yet</div>`;
@@ -120,17 +131,43 @@ function bindContentFieldListeners(el) {
 
 function insertVariableByName(name) {
   const textarea = document.getElementById("templateContent");
+  if (!textarea) {
+    console.error('Template content textarea not found');
+    return;
+  }
   insertTextAtCaret(textarea, `{#${name}#}`);
   hideSuggestions();
 }
 
-function insertVariableIntoContent(rowId) {
-  const name = document.querySelector(`.var-name-input[data-row-id="${rowId}"]`)?.value.trim();
-  if (!name) return alert("Variable name required");
+window.insertVariableIntoContent = function(rowId) {
+  console.log('insertVariableIntoContent called with rowId:', rowId);
+  
+  const nameInput = document.querySelector(`.var-name-input[data-row-id="${rowId}"]`);
+  console.log('Name input element:', nameInput);
+  
+  if (!nameInput) {
+    console.error('Variable name input not found for rowId:', rowId);
+    alert("Variable input not found. Please refresh and try again.");
+    return;
+  }
+  
+  const name = nameInput.value.trim();
+  console.log('Variable name:', name);
+  
+  if (!name) {
+    alert("Please enter a variable name first");
+    return;
+  }
+  
   insertVariableByName(name);
-}
+};
 
 function insertTextAtCaret(el, text) {
+  if (!el) {
+    console.error('Element not found for text insertion');
+    return;
+  }
+  
   try {
     const start = el.selectionStart ?? el.value.length;
     const end = el.selectionEnd ?? start;
@@ -240,10 +277,14 @@ function chooseSuggestion(name) {
 /* ---------------- SAVE TEMPLATE ---------------- */
 
 window.saveTemplate = async function () {
+  console.log('saveTemplate called');
+  
   const title = (document.getElementById('templateTitle')?.value || '').trim();
   const category = document.getElementById('templateCategory')?.value || '';
   const content = (document.getElementById('templateContent')?.value || '').trim();
   const classScope = (document.getElementById('templateClassScope')?.value || '').trim() || null;
+
+  console.log('Form values:', { title, category, content: content.substring(0, 50), classScope });
 
   if (!title || !category || !content) {
     alert('Please fill in all required fields (Title, Category, Content)');
@@ -260,6 +301,8 @@ window.saveTemplate = async function () {
     status: 'pending',
     is_active: true
   };
+  
+  console.log('Sending data:', data);
 
   try {
     const res = await fetch(`${window.API_BASE}/templates/create/`, {
@@ -268,6 +311,8 @@ window.saveTemplate = async function () {
       credentials: 'include',
       body: JSON.stringify(data)
     });
+    
+    console.log('Response status:', res.status);
 
     if (res.status === 401 || res.status === 403) {
       alert('Session expired or unauthorized. Please log in again.');
@@ -277,10 +322,17 @@ window.saveTemplate = async function () {
 
     if (!res.ok) {
       let msg = 'Failed to save template';
-      try { const err = await res.json(); if (err?.error) msg = err.error; } catch {}
+      try { 
+        const err = await res.json(); 
+        console.error('Error response:', err);
+        if (err?.error) msg = err.error; 
+      } catch {}
       alert(msg);
       return;
     }
+
+    const result = await res.json();
+    console.log('Success response:', result);
 
     const modalEl = document.getElementById('addTemplateModal');
     const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);

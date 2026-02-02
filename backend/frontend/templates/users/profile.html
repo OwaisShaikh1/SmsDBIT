@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="csrf-token" content="{{ csrf_token }}">
   <title>My Profile | SMS Portal</title>
 
   <!-- Bootstrap -->
@@ -147,9 +148,40 @@
   <script>
     // Ensure same data source as other pages (localStorage for static demo)
     document.addEventListener("DOMContentLoaded", () => {
-      const userName = localStorage.getItem("userName") || localStorage.getItem("username") || "John Doe";
-      const userEmail = localStorage.getItem("userEmail") || "user@example.com";
-      const role = localStorage.getItem("role") || "teacher";
+      // Server-provided values (seed localStorage if keys are missing)
+      let serverName, serverEmail, serverRole;
+      {% if request.user.is_authenticated %}
+        {% if request.user.get_full_name %}
+          serverName = ("{{ request.user.get_full_name|escapejs }}").trim();
+        {% elif request.user.first_name or request.user.last_name %}
+          serverName = ("{{ request.user.first_name|default:''|escapejs }} {{ request.user.last_name|default:''|escapejs }}").trim();
+        {% else %}
+          serverName = ("{{ request.user.username|default:''|escapejs }}").trim();
+        {% endif %}
+        serverEmail = "{{ request.user.email|default:''|escapejs }}" || "";
+        serverRole = "{{ request.user.role|default:''|escapejs }}" || "";
+      {% else %}
+        serverName = "";
+        serverEmail = "";
+        serverRole = "";
+      {% endif %}
+
+      // Prefer server/session values (session is authoritative). Overwrite localStorage when server values exist.
+      try {
+        if (serverName) {
+          localStorage.setItem("userName", serverName);
+        }
+        if (serverEmail) {
+          localStorage.setItem("userEmail", serverEmail);
+        }
+        if (serverRole) {
+          localStorage.setItem("role", serverRole);
+        }
+      } catch (e) { /* ignore storage errors */ }
+
+      const userName = serverName || localStorage.getItem("userName") || localStorage.getItem("username") || "John Doe";
+      const userEmail = serverEmail || localStorage.getItem("userEmail") || "user@example.com";
+      const role = serverRole || localStorage.getItem("role") || "teacher";
 
       document.getElementById("displayName").textContent = userName;
       document.getElementById("displayRole").textContent = role.charAt(0).toUpperCase() + role.slice(1);
@@ -159,20 +191,20 @@
       document.getElementById("emailInput").value = userEmail;
       document.getElementById("roleInput").value = role;
 
-      // Save handler (simulated)
+      // Save handler (simulated). Consider replacing with an API POST to persist server-side.
       document.getElementById("profileForm").addEventListener("submit", (e) => {
         e.preventDefault();
         const newName = document.getElementById("nameInput").value.trim();
         const newPassword = document.getElementById("passwordInput").value.trim();
 
         if (newName) {
-          localStorage.setItem("userName", newName);
+          try { localStorage.setItem("userName", newName); } catch (err) {}
           document.getElementById("displayName").textContent = newName;
           document.getElementById("usernameDisplay").textContent = newName;
         }
         if (newPassword) {
-          // replace with API call later
-          alert("✅ Password changed (simulated).");
+          // replace with API call later to update server password
+          alert("✅ Password changed (simulated). Use API to persist on server.");
         } else {
           alert("✅ Profile updated.");
         }

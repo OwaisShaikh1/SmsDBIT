@@ -25,6 +25,20 @@
       display: inline-block;
       font-weight: 500;
     }
+    
+    .var-chip {
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    
+    .var-chip:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .var-chip:active {
+      transform: translateY(0);
+    }
 
     .var-string  { background-color: #e0f2fe; color: #0369a1; }
     .var-integer { background-color: #dcfce7; color: #166534; }
@@ -32,6 +46,9 @@
     .var-time    { background-color: #ede9fe; color: #5b21b6; }
     .var-float   { background-color: #ffe4e6; color: #9f1239; }
     .var-unknown { background-color: #e5e7eb; color: #374151; }
+    .var-boolean { background-color: #dbeafe; color: #1e40af; }
+    .var-email   { background-color: #fce7f3; color: #9f1239; }
+    .var-phone   { background-color: #e0e7ff; color: #4338ca; }
 
     .autocomplete-container { position: relative; }
     .autocomplete-menu {
@@ -136,11 +153,12 @@
                     <th>Variables</th>
                     <th>Status</th>
                     <th>Created</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody id="templateTableBody">
                   <tr>
-                    <td colspan="5" class="text-center text-muted py-4">
+                    <td colspan="6" class="text-center text-muted py-4">
                       Loading templates...
                     </td>
                   </tr>
@@ -156,7 +174,9 @@
 
   <!-- Add Template Modal -->
   {% include "templates/add_template_modal.html" %}
-  <!-- (optional: keep inline if you want, unchanged markup) -->
+  
+  <!-- Edit Template Modal -->
+  {% include "templates/edit_template_modal.html" %}
 
   <!-- Bootstrap -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

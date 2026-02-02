@@ -66,7 +66,7 @@ def create_template(request):
             variable_schema=data.get('variable_schema'),
             class_scope=data.get('class_scope'),
             is_active=data.get('is_active', True),
-            created_by=user
+            user=user
         )
         
         serializer = TemplateSerializer(template)
@@ -77,6 +77,117 @@ def create_template(request):
         
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid JSON"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def get_template(request, template_id):
+    """Get a single template by ID."""
+    try:
+        template = Template.objects.get(id=template_id)
+        
+        # Check permissions
+        user = request.user
+        if user.role != "admin" and template.status != 'approved':
+            return JsonResponse({"error": "Template not found or access denied"}, status=404)
+        
+        serializer = TemplateSerializer(template)
+        return JsonResponse(serializer.data)
+        
+    except Template.DoesNotExist:
+        return JsonResponse({"error": "Template not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["PUT", "PATCH"])
+def update_template(request, template_id):
+    """Update an existing template. Only admin can update templates."""
+    user = request.user
+    
+    # Only admin can update templates
+    if user.role != "admin":
+        return JsonResponse({"error": "Only admins can update templates"}, status=403)
+    
+    try:
+        template = Template.objects.get(id=template_id)
+        data = json.loads(request.body)
+        
+        # Update fields if provided
+        if 'title' in data:
+            title = data['title'].strip()
+            if not title:
+                return JsonResponse({"error": "Title cannot be empty"}, status=400)
+            template.title = title
+        
+        if 'content' in data:
+            content = data['content'].strip()
+            if not content:
+                return JsonResponse({"error": "Content cannot be empty"}, status=400)
+            if len(content) > 1600:
+                return JsonResponse({"error": "Content cannot exceed 1600 characters"}, status=400)
+            template.content = content
+        
+        if 'category' in data:
+            category = data['category']
+            if category not in ['student', 'teacher', 'common']:
+                return JsonResponse({"error": "Invalid category"}, status=400)
+            template.category = category
+        
+        if 'status' in data:
+            status = data['status']
+            if status not in ['approved', 'pending', 'rejected']:
+                return JsonResponse({"error": "Invalid status"}, status=400)
+            template.status = status
+        
+        if 'variable_schema' in data:
+            template.variable_schema = data['variable_schema']
+        
+        if 'class_scope' in data:
+            template.class_scope = data['class_scope']
+        
+        if 'is_active' in data:
+            template.is_active = data['is_active']
+        
+        template.save()
+        
+        serializer = TemplateSerializer(template)
+        return JsonResponse({
+            "message": "Template updated successfully",
+            "template": serializer.data
+        })
+        
+    except Template.DoesNotExist:
+        return JsonResponse({"error": "Template not found"}, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["DELETE"])
+def delete_template(request, template_id):
+    """Delete a template. Only admin can delete templates."""
+    user = request.user
+    
+    # Only admin can delete templates
+    if user.role != "admin":
+        return JsonResponse({"error": "Only admins can delete templates"}, status=403)
+    
+    try:
+        template = Template.objects.get(id=template_id)
+        template_title = template.title
+        template.delete()
+        
+        return JsonResponse({
+            "message": f"Template '{template_title}' deleted successfully"
+        })
+        
+    except Template.DoesNotExist:
+        return JsonResponse({"error": "Template not found"}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
 
